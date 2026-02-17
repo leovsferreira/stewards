@@ -136,3 +136,25 @@
 
   flex: 0 0 auto;
 }
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.controlLabel {
+  font-size: 12px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.select {
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: white;
+}
