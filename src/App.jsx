@@ -11,7 +11,7 @@ export default function App() {
 
   return (
     <div className="page">
-      <MapView>
+      <MapView meta2x2={meta2x2} sortKey={sortKey}>
         {({ bounds, mapZoom, flyToTile }) => {
           const { tiles, activeMeta, activeMetaById, isDetailMode } = useTiles({
             bounds,

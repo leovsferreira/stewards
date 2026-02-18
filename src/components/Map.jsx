@@ -1,7 +1,10 @@
 import { useMap } from "../hooks/useMap";
+import { useHeatmap } from "../hooks/useHeatmap";
 
-export function MapView({ children }) {
-  const { mapContainerRef, bounds, mapZoom, flyToTile } = useMap();
+export function MapView({ meta2x2, sortKey, children }) {
+  const { mapContainerRef, mapRef, bounds, mapZoom, flyToTile } = useMap();
+
+  useHeatmap(mapRef, meta2x2, sortKey);
 
   return (
     <>
