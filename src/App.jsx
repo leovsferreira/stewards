@@ -15,6 +15,22 @@ function lonLatToTile(lon, lat, z) {
   return { x, y, z };
 }
 
+/* Convert XYZ tile -> lon/lat bounds [W,S,E,N] */
+function tileToLngLatBounds(x, y, z) {
+  const n = 2 ** z;
+
+  const west = (x / n) * 360 - 180;
+  const east = ((x + 1) / n) * 360 - 180;
+
+  const latRadNorth = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n)));
+  const latRadSouth = Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 1)) / n)));
+
+  const north = (latRadNorth * 180) / Math.PI;
+  const south = (latRadSouth * 180) / Math.PI;
+
+  return [west, south, east, north];
+}
+
 /* Compute all tiles intersecting bounds at zoom z */
 function tilesForBounds(bounds, z) {
   const nw = lonLatToTile(bounds.west, bounds.north, z);
@@ -37,26 +53,12 @@ function tilesForBounds(bounds, z) {
   return tiles;
 }
 
-/* Tile row component that only renders if the image exists */
-function TileRowIfExists({ tile, meta, sortKey }) {
+/* ---------- UI components ---------- */
+function TileRow({ tile, meta, sortKey, clickable, onClick }) {
   const imgUrl = `/tiles/${tile.z}/${tile.x}/${tile.y}.jpg`;
-  const [exists, setExists] = useState(null); // null=checking, true/false decided
+  const [hidden, setHidden] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setExists(null);
-
-    const img = new Image();
-    img.onload = () => !cancelled && setExists(true);
-    img.onerror = () => !cancelled && setExists(false);
-    img.src = imgUrl;
-
-    return () => {
-      cancelled = true;
-    };
-  }, [imgUrl]);
-
-  if (exists !== true) return null; // ✅ skip missing tiles (and while loading)
+  if (hidden) return null;
 
   const val = meta?.[sortKey];
   const valStr =
@@ -68,18 +70,22 @@ function TileRowIfExists({ tile, meta, sortKey }) {
 
   return (
     <div className="row">
-      {/* Column 1: tile thumbnail */}
-      <div className="thumbWrap">
-        <img src={imgUrl} alt={`tile ${tile.id}`} className="thumb" loading="lazy" />
-        <div className="tileLabel">
-          {tile.id} · {valStr}
-        </div>
+      <div
+        className={`thumbWrap ${clickable ? "tileClickable" : ""}`}
+        onClick={clickable ? onClick : undefined}
+      >
+        <img
+          src={imgUrl}
+          className="thumb"
+          loading="lazy"
+          onError={() => setHidden(true)}
+        />
+        <div className="tileLabel">{tile.id} · {valStr}</div>
       </div>
 
-      {/* Column 2: horizontal suggestions */}
       <div className="suggestionsWrap">
         <div className="suggestionsScroller">
-          {Array.from({ length: 20 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="suggestionCard">
               Suggestion {i + 1}
             </div>
@@ -90,37 +96,51 @@ function TileRowIfExists({ tile, meta, sortKey }) {
   );
 }
 
+
 export default function App() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
 
   const [bounds, setBounds] = useState(null);
+  const [mapZoom, setMapZoom] = useState(12);
 
-  // Load z=18 metadata (your 2x2 tiles)
-  const [meta2x2, setMeta2x2] = useState(null);
-
-  // Sort key (descending)
+  // Sorting dropdown (descending)
   const [sortKey, setSortKey] = useState("n_uncertain");
 
-  // 2x2 tiles are z=18 (since base 1x1 is z=19)
-  const zFor2x2 = 18;
+  // Metadata for 8x8 (z=16) and 2x2 (z=18)
+  const [meta8x8, setMeta8x8] = useState(null);
+  const [meta2x2, setMeta2x2] = useState(null);
 
-  // Fast lookup: available tile ids
-  const available2x2 = useMemo(() => {
-    if (!meta2x2) return null;
-    return new Set(meta2x2.map((r) => r.tile_id));
-  }, [meta2x2]);
+  // Mode switch:
+  // zoom < 16  => show 8x8 tiles (z=16)
+  // zoom >= 16 => show 2x2 tiles (z=18)
+  const isDetailMode = mapZoom >= 16;
+  const activeZ = isDetailMode ? 18 : 16;
+  const activeMeta = isDetailMode ? meta2x2 : meta8x8;
 
-  // Fast lookup: tile_id -> metadata record
-  const metaByTileId = useMemo(() => {
-    if (!meta2x2) return null;
+  // Lookups for active mode
+  const activeAvailable = useMemo(() => {
+    if (!activeMeta) return null;
+    return new Set(activeMeta.map((r) => r.tile_id));
+  }, [activeMeta]);
+
+  const activeMetaById = useMemo(() => {
+    if (!activeMeta) return null;
     const m = new Map();
-    for (const r of meta2x2) m.set(r.tile_id, r);
+    for (const r of activeMeta) m.set(r.tile_id, r);
     return m;
-  }, [meta2x2]);
+  }, [activeMeta]);
 
-  // Fetch metadata once
+  // Fetch metadata once (put these files in public/meta/)
   useEffect(() => {
+    fetch("/meta/meta_z16_8x8.json")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(setMeta8x8)
+      .catch((err) => console.error("Failed to load meta_z16_8x8:", err));
+
     fetch("/meta/meta_z18_2x2.json")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -130,18 +150,17 @@ export default function App() {
       .catch((err) => console.error("Failed to load meta_z18_2x2:", err));
   }, []);
 
-  // Compute tiles in view (ONLY those that exist in your metadata) and sort desc
+  // Compute tiles in view for the active mode and sort desc by sortKey
   const tiles = useMemo(() => {
     if (!bounds) return [];
-    if (!available2x2 || !metaByTileId) return [];
+    if (!activeAvailable || !activeMetaById) return [];
 
-    const all = tilesForBounds(bounds, zFor2x2);
-    const onlyMine = all.filter((t) => available2x2.has(t.id));
+    const all = tilesForBounds(bounds, activeZ);
+    const onlyMine = all.filter((t) => activeAvailable.has(t.id));
 
-    // Desc sort: max at top
     onlyMine.sort((a, b) => {
-      const ma = metaByTileId.get(a.id);
-      const mb = metaByTileId.get(b.id);
+      const ma = activeMetaById.get(a.id);
+      const mb = activeMetaById.get(b.id);
 
       const va = Number(ma?.[sortKey] ?? -Infinity);
       const vb = Number(mb?.[sortKey] ?? -Infinity);
@@ -149,18 +168,16 @@ export default function App() {
       return vb - va;
     });
 
-    // return onlyMine.slice(0, 300);
     return onlyMine;
-  }, [bounds, available2x2, metaByTileId, sortKey]);
+  }, [bounds, activeAvailable, activeMetaById, activeZ, sortKey]);
 
-  // Initialize map once
+  // Initialize map
   useEffect(() => {
     if (mapRef.current) return;
 
     const style = {
       version: 8,
       sources: {
-        // Humanitarian OSM (HOT) basemap
         hot: {
           type: "raster",
           tiles: [
@@ -188,7 +205,7 @@ export default function App() {
       console.error("MAP ERROR:", e?.error || e);
     });
 
-    const updateBounds = () => {
+    const updateStateFromMap = () => {
       const b = map.getBounds();
       setBounds({
         west: b.getWest(),
@@ -196,14 +213,15 @@ export default function App() {
         east: b.getEast(),
         north: b.getNorth(),
       });
+      console.log(map.getZoom())
+      setMapZoom(map.getZoom());
     };
 
     map.on("load", () => {
-      // Optional: overlay YOUR tile pyramid (z=16..19) on the map
-      // Remove this block if you don't want your ortho tiles on the map yet.
+      // Overlay tile pyramid (z=16..19) on the map
       map.addSource("myOrthoTiles", {
         type: "raster",
-        tiles: ["/tiles/{z}/{x}/{y}.jpg"], // via Vite proxy -> localhost:8000
+        tiles: ["/tiles/{z}/{x}/{y}.jpg"],
         tileSize: 256,
         minzoom: 16,
         maxzoom: 19,
@@ -218,11 +236,11 @@ export default function App() {
         paint: { "raster-opacity": 1.0 },
       });
 
-      updateBounds();
+      updateStateFromMap();
     });
 
-    map.on("moveend", updateBounds);
-    map.on("zoomend", updateBounds);
+    map.on("moveend", updateStateFromMap);
+    map.on("zoomend", updateStateFromMap);
 
     mapRef.current = map;
 
@@ -231,6 +249,31 @@ export default function App() {
       mapRef.current = null;
     };
   }, []);
+
+  const handleClickTile = (tile) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const [w, s, e, n] = tileToLngLatBounds(tile.x, tile.y, tile.z);
+
+    map.fitBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      {
+        padding: 10,
+        duration: 600,
+        maxZoom: 16.99,
+      }
+    );
+  };
+
+
+  const titleText = isDetailMode ? "2 x 2 Tiles" : "8 x 8 Tiles";
+  const loadingText = isDetailMode
+    ? "Loading 2 x 2 metadata..."
+    : "Loading 8 x 8 metadata...";
 
   return (
     <div className="page">
@@ -243,15 +286,22 @@ export default function App() {
       <div className="rightPane">
         <div className="header">
           <div>
-            <div className="title">2 x 2 Tiles</div>
+            <div className="title">
+              {titleText}{" "}
+              <span style={{ fontWeight: 400, color: "#666", fontSize: 12 }}>
+                (mode switches at zoom 16)
+              </span>
+            </div>
             <div className="sub">
-              {!meta2x2
-                ? "Loading metadata…"
+              {!activeMeta
+                ? loadingText
                 : bounds
-                ? `W ${bounds.west.toFixed(4)} · S ${bounds.south.toFixed(
+                ? `Zoom ${mapZoom.toFixed(2)} · W ${bounds.west.toFixed(
                     4
-                  )} · E ${bounds.east.toFixed(4)} · N ${bounds.north.toFixed(4)}`
-                : "Waiting for map…"}
+                  )} · S ${bounds.south.toFixed(4)} · E ${bounds.east.toFixed(
+                    4
+                  )} · N ${bounds.north.toFixed(4)}`
+                : "Waiting for map..."}
             </div>
           </div>
 
@@ -277,11 +327,13 @@ export default function App() {
 
         <div className="list">
           {tiles.map((t) => (
-            <TileRowIfExists
-              key={t.id}
+            <TileRow
+              key={`${t.z}_${t.id}`}
               tile={t}
-              meta={metaByTileId?.get(t.id)}
+              meta={activeMetaById?.get(t.id)}
               sortKey={sortKey}
+              clickable={!isDetailMode}
+              onClick={!isDetailMode ? () => handleClickTile(t) : undefined}
             />
           ))}
         </div>

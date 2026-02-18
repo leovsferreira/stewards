@@ -158,3 +158,17 @@
   border: 1px solid #ddd;
   background: white;
 }
+
+.tileClickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.tileClickable:hover {
+  transform: scale(1.03);
+  border-radius: 10px;
+}
+
+.tileClickable:active {
+  transform: scale(0.5);
+}
