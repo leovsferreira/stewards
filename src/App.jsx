@@ -85,7 +85,7 @@ function TileRow({ tile, meta, sortKey, clickable, onClick }) {
 
       <div className="suggestionsWrap">
         <div className="suggestionsScroller">
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: 20 }).map((_, i) => (
             <div key={i} className="suggestionCard">
               Suggestion {i + 1}
             </div>
@@ -287,10 +287,7 @@ export default function App() {
         <div className="header">
           <div>
             <div className="title">
-              {titleText}{" "}
-              <span style={{ fontWeight: 400, color: "#666", fontSize: 12 }}>
-                (mode switches at zoom 16)
-              </span>
+              {titleText}
             </div>
             <div className="sub">
               {!activeMeta
