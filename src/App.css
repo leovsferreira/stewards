@@ -172,3 +172,106 @@
 .tileClickable:active {
   transform: scale(0.5);
 }
+
+.mapOverlayControl {
+  position: absolute;
+  bottom: 24px;
+  left: 12px;
+  z-index: 10;
+
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  padding: 8px 14px;
+}
+
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggleIcon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.toggleText {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.toggleTrack {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: #ccc;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.toggleTrack.on {
+  background: #4a90d9;
+}
+
+.toggleThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.toggleTrack.on .toggleThumb {
+  transform: translateX(16px);
+}
+
+.mapLegend {
+  position: absolute;
+  bottom: 24px;
+  left: 180px;
+  z-index: 10;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  padding: 10px 14px;
+  min-width: 180px;
+}
+
+.legendTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #444;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.legendBar {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    rgb(33, 102, 172),
+    rgb(103, 169, 207),
+    rgb(253, 219, 199),
+    rgb(239, 138, 98),
+    rgb(178, 24, 43)
+  );
+}
+
+.legendLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #555;
+  font-variant-numeric: tabular-nums;
+}
