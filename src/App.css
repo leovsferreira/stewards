@@ -19,7 +19,6 @@
   width: 100%;
 }
 
-/* Right = Tile Browser */
 .rightPane {
   width: 50%;
   display: flex;
@@ -33,18 +32,11 @@
 }
 
 .rightPane.macro .thumbWrap {
-  width: 250px;
-  min-width: 250px;
   align-items: center;
 }
 
-.rightPane.macro .thumb {
-  width: 250px;
-  height: 250px;
-}
-
 .rightPane.macro {
-  width: 310px;
+  width: 360px;
 }
 
 /* Header */
@@ -114,12 +106,10 @@
 
 /* Tile thumbnail */
 .thumbWrap {
-  width: 160px;
-  min-width: 160px;
-
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .thumb {
@@ -130,6 +120,19 @@
   border-radius: 8px;
 
   background: #f0f0f0;
+}
+
+.thumbContainer {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.networkOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
 }
 
 .tileLabel {

@@ -1,16 +1,19 @@
 import { useState } from "react";
+import { NetworkOverlay } from "./NetworkOverlay";
 
 /**
- * TileRow displays a tile thumbnail + optional suggestion cards.
+ * TileRow displays a tile thumbnail with optional network overlay + suggestion cards.
  *
  * Props:
- *   tile        – { z, x, y, id }
- *   meta        – metadata record for the tile (or undefined)
- *   sortKey     – active metric key
- *   onClick     – click handler for the thumbnail (always provided now)
+ *   tile            – { z, x, y, id }
+ *   meta            – metadata record for the tile (or undefined)
+ *   sortKey         – active metric key
+ *   onClick         – click handler for the thumbnail
  *   showSuggestions – whether to render the suggestion cards
+ *   networkData     – parsed GeoJSON FeatureCollection (or null)
+ *   thumbSize       – thumbnail pixel size (default 160)
  */
-export function TileRow({ tile, meta, sortKey, onClick, showSuggestions }) {
+export function TileRow({ tile, meta, sortKey, onClick, showSuggestions, networkData, thumbSize = 160 }) {
   const imgUrl = `/tiles/${tile.z}/${tile.x}/${tile.y}.jpg`;
   const [hidden, setHidden] = useState(false);
 
@@ -29,13 +32,20 @@ export function TileRow({ tile, meta, sortKey, onClick, showSuggestions }) {
       <div
         className={`thumbWrap ${onClick ? "tileClickable" : ""}`}
         onClick={onClick}
+        style={{ width: thumbSize, minWidth: thumbSize }}
       >
-        <img
-          src={imgUrl}
-          className="thumb"
-          loading="lazy"
-          onError={() => setHidden(true)}
-        />
+        <div className="thumbContainer" style={{ width: thumbSize, height: thumbSize }}>
+          <img
+            src={imgUrl}
+            className="thumb"
+            style={{ width: thumbSize, height: thumbSize }}
+            loading="lazy"
+            onError={() => setHidden(true)}
+          />
+          {networkData && (
+            <NetworkOverlay tile={tile} networkData={networkData} size={thumbSize} />
+          )}
+        </div>
         <div className="tileLabel">
           {tile.id} · {valStr}
         </div>

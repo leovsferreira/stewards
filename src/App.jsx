@@ -30,7 +30,7 @@ export default function App() {
   return (
     <div className="page">
       <MapView meta2x2={meta2x2} sortKey={sortKey}>
-        {({ bounds, mapZoom, flyToTile, fitToTile }) => {
+        {({ bounds, mapZoom, flyToTile, fitToTile, networkData }) => {
           const { tiles, activeMeta, activeMetaById, viewLevel } = useTiles({
             bounds,
             mapZoom,
@@ -103,6 +103,8 @@ export default function App() {
                     sortKey={sortKey}
                     onClick={getClickHandler(t)}
                     showSuggestions={showSuggestions}
+                    networkData={networkData}
+                    thumbSize={viewLevel === "macro" ? 300 : 160}
                   />
                 ))}
               </div>
