@@ -23,7 +23,7 @@ export function useNetwork(mapRef) {
     const addLayer = async () => {
       if (added.current) return;
 
-      const baseUrl = `${window.location.origin}/polygon_injection_network`;
+      const baseUrl = `${window.location.origin}/original/original_network`;
       const geojson = await shp(baseUrl);
 
       if (cancelled || !map || map._removed) return;
