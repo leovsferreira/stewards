@@ -33,7 +33,7 @@ export function useMap() {
       container: mapContainerRef.current,
       style: MAP_STYLE,
       center: [-71.06, 42.3], // Dorchester / Boston area
-      zoom: 12,
+      zoom: 13,
     });
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -67,7 +67,6 @@ export function useMap() {
         type: "raster",
         source: "myOrthoTiles",
         minzoom: 16,
-        maxzoom: 19,
         paint: { "raster-opacity": 1.0 },
       });
 
@@ -85,6 +84,10 @@ export function useMap() {
     };
   }, []);
 
+  /**
+   * Fly to an 8×8 tile (macro → meso transition).
+   * Caps zoom at 16.99 so we land in meso level.
+   */
   const flyToTile = (tile) => {
     const map = mapRef.current;
     if (!map) return;
@@ -97,5 +100,20 @@ export function useMap() {
     });
   };
 
-  return { mapContainerRef, mapRef, bounds, mapZoom, flyToTile };
+  /**
+   * Fit the map exactly to a 2×2 tile (meso → micro / micro → micro).
+   * No maxZoom cap — lets the map zoom in fully to the tile extent.
+   */
+  const fitToTile = (tile) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const [w, s, e, n] = tileToLngLatBounds(tile.x, tile.y, tile.z);
+    map.fitBounds([[w, s], [e, n]], {
+      padding: 20,
+      duration: 600,
+    });
+  };
+
+  return { mapContainerRef, mapRef, bounds, mapZoom, flyToTile, fitToTile };
 }

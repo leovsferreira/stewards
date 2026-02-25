@@ -9,7 +9,8 @@
 
 /* Left = Map */
 .leftPane {
-  width: 50%;
+  flex: 1;
+  min-width: 0;
   border-right: 1px solid #ddd;
 }
 
@@ -24,6 +25,26 @@
   display: flex;
   flex-direction: column;
   background: #fafafa;
+  transition: width 0.3s ease;
+}
+
+.rightPane.macro .row {
+  justify-content: center;
+}
+
+.rightPane.macro .thumbWrap {
+  width: 250px;
+  min-width: 250px;
+  align-items: center;
+}
+
+.rightPane.macro .thumb {
+  width: 250px;
+  height: 250px;
+}
+
+.rightPane.macro {
+  width: 310px;
 }
 
 /* Header */
@@ -33,13 +54,28 @@
   background: white;
 
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .title {
   font-size: 16px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.levelBadge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #e8f0fe;
+  color: #4a90d9;
 }
 
 .sub {
@@ -161,16 +197,16 @@
 
 .tileClickable {
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .tileClickable:hover {
-  transform: scale(1.03);
-  border-radius: 10px;
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .tileClickable:active {
-  transform: scale(0.5);
+  transform: scale(0.97);
 }
 
 .mapOverlayControl {

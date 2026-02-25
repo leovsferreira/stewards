@@ -10,7 +10,7 @@ function formatValue(v) {
 }
 
 export function MapView({ meta2x2, sortKey, children }) {
-  const { mapContainerRef, mapRef, bounds, mapZoom, flyToTile } = useMap();
+  const { mapContainerRef, mapRef, bounds, mapZoom, flyToTile, fitToTile } = useMap();
   const [heatmapOn, setHeatmapOn] = useState(true);
 
   const valueRange = useHeatmap(mapRef, meta2x2, sortKey, heatmapOn);
@@ -47,7 +47,7 @@ export function MapView({ meta2x2, sortKey, children }) {
         )}
       </div>
 
-      {children({ bounds, mapZoom, flyToTile })}
+      {children({ bounds, mapZoom, flyToTile, fitToTile })}
     </>
   );
 }

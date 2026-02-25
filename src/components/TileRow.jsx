@@ -1,6 +1,16 @@
 import { useState } from "react";
 
-export function TileRow({ tile, meta, sortKey, clickable, onClick }) {
+/**
+ * TileRow displays a tile thumbnail + optional suggestion cards.
+ *
+ * Props:
+ *   tile        – { z, x, y, id }
+ *   meta        – metadata record for the tile (or undefined)
+ *   sortKey     – active metric key
+ *   onClick     – click handler for the thumbnail (always provided now)
+ *   showSuggestions – whether to render the suggestion cards
+ */
+export function TileRow({ tile, meta, sortKey, onClick, showSuggestions }) {
   const imgUrl = `/tiles/${tile.z}/${tile.x}/${tile.y}.jpg`;
   const [hidden, setHidden] = useState(false);
 
@@ -17,8 +27,8 @@ export function TileRow({ tile, meta, sortKey, clickable, onClick }) {
   return (
     <div className="row">
       <div
-        className={`thumbWrap ${clickable ? "tileClickable" : ""}`}
-        onClick={clickable ? onClick : undefined}
+        className={`thumbWrap ${onClick ? "tileClickable" : ""}`}
+        onClick={onClick}
       >
         <img
           src={imgUrl}
@@ -31,15 +41,17 @@ export function TileRow({ tile, meta, sortKey, clickable, onClick }) {
         </div>
       </div>
 
-      <div className="suggestionsWrap">
-        <div className="suggestionsScroller">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div key={i} className="suggestionCard">
-              Suggestion {i + 1}
-            </div>
-          ))}
+      {showSuggestions && (
+        <div className="suggestionsWrap">
+          <div className="suggestionsScroller">
+            {Array.from({ length: 20 }).map((_, i) => (
+              <div key={i} className="suggestionCard">
+                Suggestion {i + 1}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

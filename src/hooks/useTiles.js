@@ -1,10 +1,25 @@
 import { useMemo } from "react";
 import { tilesForBounds } from "../utils/tileUtils";
 
+/**
+ * View levels:
+ *   "macro" — zoom < 16  → z16 (8×8) tiles, no suggestions
+ *   "meso"  — 16 ≤ zoom < 18.5 → z18 (2×2) tiles + suggestions
+ *   "micro" — zoom ≥ 18.5 → z18 (2×2) tiles + suggestions (single-tile focus)
+ */
+const MESO_ZOOM = 16;
+const MICRO_ZOOM = 18.5;
+
+function getViewLevel(zoom) {
+  if (zoom >= MICRO_ZOOM) return "micro";
+  if (zoom >= MESO_ZOOM) return "meso";
+  return "macro";
+}
+
 export function useTiles({ bounds, mapZoom, meta8x8, meta2x2, sortKey }) {
-  const isDetailMode = mapZoom >= 16;
-  const activeZ = isDetailMode ? 18 : 16;
-  const activeMeta = isDetailMode ? meta2x2 : meta8x8;
+  const viewLevel = getViewLevel(mapZoom);
+  const activeZ = viewLevel === "macro" ? 16 : 18;
+  const activeMeta = viewLevel === "macro" ? meta8x8 : meta2x2;
 
   const activeAvailable = useMemo(() => {
     if (!activeMeta) return null;
@@ -33,5 +48,5 @@ export function useTiles({ bounds, mapZoom, meta8x8, meta2x2, sortKey }) {
     return visible;
   }, [bounds, activeAvailable, activeMetaById, activeZ, sortKey]);
 
-  return { tiles, activeMeta, activeMetaById, activeZ, isDetailMode };
+  return { tiles, activeMeta, activeMetaById, activeZ, viewLevel };
 }
