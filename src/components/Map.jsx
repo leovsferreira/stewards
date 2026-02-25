@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMap } from "../hooks/useMap";
 import { useHeatmap } from "../hooks/useHeatmap";
+import { useNetwork } from "../hooks/useNetwork";
 
 function formatValue(v) {
   if (v === undefined || v === null) return "—";
@@ -14,6 +15,7 @@ export function MapView({ meta2x2, sortKey, children }) {
   const [heatmapOn, setHeatmapOn] = useState(true);
 
   const valueRange = useHeatmap(mapRef, meta2x2, sortKey, heatmapOn);
+  useNetwork(mapRef);
 
   return (
     <>
