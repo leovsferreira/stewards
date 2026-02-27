@@ -1,24 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 
-const EDGE_SOURCE   = "editor-edges-source";
-const EDGE_LAYER    = "editor-edges-layer";
-const EDGE_HIT      = "editor-edges-hit";   // transparent wide layer for easier right-click
-const NODE_SOURCE   = "editor-nodes-source";
-const NODE_LAYER    = "editor-nodes-layer";
-const MESO_ZOOM     = 16;
+const EDGE_SOURCE = "editor-edges-source";
+const EDGE_LAYER  = "editor-edges-layer";
+const EDGE_HIT    = "editor-edges-hit";
+const NODE_SOURCE = "editor-nodes-source";
+const NODE_LAYER  = "editor-nodes-layer";
+const MESO_ZOOM   = 16;
 
-// ── Parse raw GeoJSON into a node/edge graph ─────────────────────────────────
-// Nodes are unique coordinates (keyed by rounded lng,lat).
-// Edges are the LineString segments, referencing node IDs.
+// ── Parse GeoJSON → node/edge graph + adjacency index ────────────────────────
 
 function parseNetwork(geojson) {
-  const byKey = new Map(); // "lng,lat" → node
-  const edges = [];
+  const byKey = new Map();
+  const edges = new Map();
+  const nodeEdgeIndex = new Map(); // nodeId → Set<edgeId>
   let nc = 0, ec = 0;
 
   const getNode = (lng, lat) => {
     const key = `${lng.toFixed(6)},${lat.toFixed(6)}`;
-    if (!byKey.has(key)) byKey.set(key, { id: `n${nc++}`, lng, lat });
+    if (!byKey.has(key)) {
+      const id = `n${nc++}`;
+      byKey.set(key, { id, lng, lat });
+    }
     return byKey.get(key).id;
   };
 
@@ -29,56 +31,58 @@ function parseNetwork(geojson) {
         : f.geometry.coordinates;
     for (const ring of rings) {
       const nodeIds = ring.map(([lng, lat]) => getNode(lng, lat));
-      if (nodeIds.length >= 2) edges.push({ id: `e${ec++}`, nodeIds });
+      if (nodeIds.length < 2) continue;
+      const id = `e${ec++}`;
+      edges.set(id, { id, nodeIds });
+      for (const nid of nodeIds) {
+        if (!nodeEdgeIndex.has(nid)) nodeEdgeIndex.set(nid, new Set());
+        nodeEdgeIndex.get(nid).add(id);
+      }
     }
   }
 
-  return {
-    nodes: new Map([...byKey.values()].map((n) => [n.id, n])),
-    edges: new Map(edges.map((e) => [e.id, e])),
-  };
+  const nodes = new Map([...byKey.values()].map((n) => [n.id, n]));
+  return { nodes, edges, nodeEdgeIndex };
 }
 
-// ── Build GeoJSON for MapLibre sources ───────────────────────────────────────
+// ── Build GeoJSON caches (mutable feature objects stored in Maps) ─────────────
 
-function buildEdgesGeoJSON({ nodes, edges }) {
-  return {
+function buildCaches({ nodes, edges }) {
+  const nodeFeatMap = new Map();
+  const edgeFeatMap = new Map();
+
+  const nodeFC = {
+    type: "FeatureCollection",
+    features: [...nodes.values()].map((n) => {
+      const f = {
+        type: "Feature",
+        properties: { id: n.id },
+        geometry: { type: "Point", coordinates: [n.lng, n.lat] },
+      };
+      nodeFeatMap.set(n.id, f);
+      return f;
+    }),
+  };
+
+  const edgeFC = {
     type: "FeatureCollection",
     features: [...edges.values()].flatMap((e) => {
-      const coords = e.nodeIds
-        .map((id) => nodes.get(id))
-        .filter(Boolean)
-        .map((n) => [n.lng, n.lat]);
+      const coords = e.nodeIds.map((id) => nodes.get(id)).filter(Boolean).map((n) => [n.lng, n.lat]);
       if (coords.length < 2) return [];
-      return [{
+      const f = {
         type: "Feature",
         properties: { id: e.id },
         geometry: { type: "LineString", coordinates: coords },
-      }];
+      };
+      edgeFeatMap.set(e.id, f);
+      return f;
     }),
   };
+
+  return { nodeFC, edgeFC, nodeFeatMap, edgeFeatMap };
 }
 
-function buildNodesGeoJSON({ nodes }) {
-  return {
-    type: "FeatureCollection",
-    features: [...nodes.values()].map((n) => ({
-      type: "Feature",
-      properties: { id: n.id },
-      geometry: { type: "Point", coordinates: [n.lng, n.lat] },
-    })),
-  };
-}
-
-// ── Push latest data to MapLibre sources ─────────────────────────────────────
-
-function syncData(map, net) {
-  if (!map) return;
-  map.getSource(EDGE_SOURCE)?.setData(buildEdgesGeoJSON(net));
-  map.getSource(NODE_SOURCE)?.setData(buildNodesGeoJSON(net));
-}
-
-// ── Find which segment of a polyline is closest to a lng/lat point ───────────
+// ── Closest segment index (for split) ────────────────────────────────────────
 
 function closestSegmentIdx(nodeIds, nodes, lng, lat) {
   let best = 0, bestD = Infinity;
@@ -86,9 +90,7 @@ function closestSegmentIdx(nodeIds, nodes, lng, lat) {
     const a = nodes.get(nodeIds[i]);
     const b = nodes.get(nodeIds[i + 1]);
     if (!a || !b) continue;
-    const mx = (a.lng + b.lng) / 2;
-    const my = (a.lat + b.lat) / 2;
-    const d = (mx - lng) ** 2 + (my - lat) ** 2;
+    const d = ((a.lng + b.lng) / 2 - lng) ** 2 + ((a.lat + b.lat) / 2 - lat) ** 2;
     if (d < bestD) { bestD = d; best = i; }
   }
   return best;
@@ -96,37 +98,71 @@ function closestSegmentIdx(nodeIds, nodes, lng, lat) {
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
-/**
- * Replaces useNetwork with an interactive editor.
- *
- * Interactions:
- *   • Drag node   → move it; all connected edges follow.
- *   • Drag node onto another node → snap back + create a new edge between them.
- *   • Right-click edge → context menu → Split Edge (inserts node at click point).
- *
- * Returns { contextMenu, setContextMenu, splitEdge } for the overlay component.
- */
 export function useNetworkEditor(mapRef, networkData) {
   const addedRef    = useRef(false);
-  const netRef      = useRef({ nodes: new Map(), edges: new Map() });
-  const draggingRef = useRef(null); // { nodeId, origLng, origLat }
+  const netRef      = useRef({ nodes: new Map(), edges: new Map(), nodeEdgeIndex: new Map() });
+  const cacheRef    = useRef({ nodeFC: null, edgeFC: null, nodeFeatMap: new Map(), edgeFeatMap: new Map() });
+  const draggingRef    = useRef(null); // { nodeId, origLng, origLat }
+  const hoveredNodeRef = useRef(null); // nodeId currently under cursor
 
-  const [contextMenu, setContextMenu] = useState(null); // { edgeId, x, y, lng, lat }
+  const [contextMenu, setContextMenu] = useState(null);
 
-  // ── Parse data when it arrives ──────────────────────────────────────────────
+  // ── Full rebuild: parse + cache + push to map ───────────────────────────────
+  const rebuild = (map, geojson) => {
+    const net = parseNetwork(geojson);
+    const cache = buildCaches(net);
+    netRef.current = net;
+    cacheRef.current = cache;
+    if (map && addedRef.current) {
+      map.getSource(EDGE_SOURCE)?.setData(cache.edgeFC);
+      map.getSource(NODE_SOURCE)?.setData(cache.nodeFC);
+    }
+  };
+
   useEffect(() => {
     if (!networkData) return;
-    netRef.current = parseNetwork(networkData);
-    const map = mapRef.current;
-    if (map && addedRef.current) syncData(map, netRef.current);
+    rebuild(mapRef.current, networkData);
   }, [networkData, mapRef]);
 
-  // ── Mount: add MapLibre layers + attach events ──────────────────────────────
+  // ── Mount layers + events ───────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // All handlers close over mapRef/netRef/draggingRef — always see latest values.
+    // ── Hot path: mutate in-place, only touch connected edges ──────────────────
+    const onMouseMove = (e) => {
+      if (!draggingRef.current) return;
+      const { nodeId } = draggingRef.current;
+      const { lng, lat } = e.lngLat;
+      const { nodes, edges, nodeEdgeIndex } = netRef.current;
+      const { nodeFeatMap, edgeFeatMap, nodeFC, edgeFC } = cacheRef.current;
+
+      // 1. Mutate the node object in-place — zero allocation
+      const node = nodes.get(nodeId);
+      if (!node) return;
+      node.lng = lng;
+      node.lat = lat;
+
+      // 2. Update the cached GeoJSON Point feature in-place
+      const nodeFeat = nodeFeatMap.get(nodeId);
+      if (nodeFeat) nodeFeat.geometry.coordinates = [lng, lat];
+
+      // 3. Only update edges connected to this node
+      const connectedEdgeIds = nodeEdgeIndex.get(nodeId) ?? new Set();
+      for (const eid of connectedEdgeIds) {
+        const edge = edges.get(eid);
+        const feat = edgeFeatMap.get(eid);
+        if (!edge || !feat) continue;
+        feat.geometry.coordinates = edge.nodeIds
+          .map((id) => nodes.get(id))
+          .filter(Boolean)
+          .map((n) => [n.lng, n.lat]);
+      }
+
+      // 4. Push same FeatureCollection objects — MapLibre re-renders without re-tiling
+      map.getSource(NODE_SOURCE)?.setData(nodeFC);
+      map.getSource(EDGE_SOURCE)?.setData(edgeFC);
+    };
 
     const onNodeMouseDown = (e) => {
       e.preventDefault();
@@ -137,47 +173,61 @@ export function useNetworkEditor(mapRef, networkData) {
       draggingRef.current = { nodeId, origLng: n.lng, origLat: n.lat };
       map.dragPan.disable();
       map.getCanvas().style.cursor = "grabbing";
-    };
-
-    const onMouseMove = (e) => {
-      if (!draggingRef.current) return;
-      const { lng, lat } = e.lngLat;
-      const { nodes, edges } = netRef.current;
-      const node = nodes.get(draggingRef.current.nodeId);
-      if (!node) return;
-      const newNodes = new Map(nodes);
-      newNodes.set(node.id, { ...node, lng, lat });
-      netRef.current = { nodes: newNodes, edges };
-      syncData(map, netRef.current);
+      map.setFeatureState({ source: NODE_SOURCE, id: nodeId }, { dragging: true, hover: false });
     };
 
     const onMouseUp = (e) => {
       if (!draggingRef.current) return;
       map.dragPan.enable();
       map.getCanvas().style.cursor = "";
+      map.setFeatureState({ source: NODE_SOURCE, id: draggingRef.current.nodeId }, { dragging: false });
 
-      // Check if dropped onto a different node → create edge, snap back
       const hits = map.queryRenderedFeatures(e.point, { layers: [NODE_LAYER] });
       const target = hits.find((f) => f.properties.id !== draggingRef.current.nodeId);
 
       if (target) {
-        const { nodeId: fromId, origLng, origLat } = draggingRef.current;
-        const toId = target.properties.id;
-
         // Snap dragged node back to its original position
-        const nodes = new Map(netRef.current.nodes);
-        const orig = nodes.get(fromId);
-        if (orig) nodes.set(fromId, { ...orig, lng: origLng, lat: origLat });
+        const { nodeId: fromId, origLng, origLat } = draggingRef.current;
+        const node = netRef.current.nodes.get(fromId);
+        if (node) {
+          node.lng = origLng;
+          node.lat = origLat;
+          const feat = cacheRef.current.nodeFeatMap.get(fromId);
+          if (feat) feat.geometry.coordinates = [origLng, origLat];
+          // Re-sync connected edges back too
+          const { edges, nodeEdgeIndex } = netRef.current;
+          for (const eid of nodeEdgeIndex.get(fromId) ?? []) {
+            const edge = edges.get(eid);
+            const edgeFeat = cacheRef.current.edgeFeatMap.get(eid);
+            if (edge && edgeFeat) {
+              edgeFeat.geometry.coordinates = edge.nodeIds
+                .map((id) => netRef.current.nodes.get(id))
+                .filter(Boolean)
+                .map((n) => [n.lng, n.lat]);
+            }
+          }
+        }
 
-        // Add new edge
-        const edges = new Map(netRef.current.edges);
+        // Add a new edge between the two nodes
+        const toId = target.properties.id;
         const newEId = `e_conn_${Date.now()}`;
-        edges.set(newEId, { id: newEId, nodeIds: [fromId, toId] });
-
-        netRef.current = { nodes, edges };
-        syncData(map, netRef.current);
+        const newEdge = { id: newEId, nodeIds: [fromId, toId] };
+        netRef.current.edges.set(newEId, newEdge);
+        for (const nid of [fromId, toId]) {
+          if (!netRef.current.nodeEdgeIndex.has(nid)) netRef.current.nodeEdgeIndex.set(nid, new Set());
+          netRef.current.nodeEdgeIndex.get(nid).add(newEId);
+        }
+        const coords = [fromId, toId]
+          .map((id) => netRef.current.nodes.get(id))
+          .filter(Boolean)
+          .map((n) => [n.lng, n.lat]);
+        const newFeat = { type: "Feature", properties: { id: newEId }, geometry: { type: "LineString", coordinates: coords } };
+        cacheRef.current.edgeFeatMap.set(newEId, newFeat);
+        cacheRef.current.edgeFC.features.push(newFeat);
       }
 
+      map.getSource(NODE_SOURCE)?.setData(cacheRef.current.nodeFC);
+      map.getSource(EDGE_SOURCE)?.setData(cacheRef.current.edgeFC);
       draggingRef.current = null;
     };
 
@@ -185,19 +235,27 @@ export function useNetworkEditor(mapRef, networkData) {
       e.preventDefault();
       const edgeId = e.features?.[0]?.properties?.id;
       if (!edgeId) return;
-      setContextMenu({
-        edgeId,
-        x: e.point.x,
-        y: e.point.y,
-        lng: e.lngLat.lng,
-        lat: e.lngLat.lat,
-      });
+      setContextMenu({ edgeId, x: e.point.x, y: e.point.y, lng: e.lngLat.lng, lat: e.lngLat.lat });
     };
 
     const onMapClick = () => setContextMenu(null);
 
-    const onNodeEnter = () => { if (!draggingRef.current) map.getCanvas().style.cursor = "grab"; };
-    const onNodeLeave = () => { if (!draggingRef.current) map.getCanvas().style.cursor = ""; };
+    const onNodeEnter = (e) => {
+      if (draggingRef.current) return;
+      const nodeId = e.features?.[0]?.properties?.id;
+      if (!nodeId) return;
+      hoveredNodeRef.current = nodeId;
+      map.setFeatureState({ source: NODE_SOURCE, id: nodeId }, { hover: true });
+      map.getCanvas().style.cursor = "grab";
+    };
+    const onNodeLeave = () => {
+      if (draggingRef.current) return;
+      if (hoveredNodeRef.current) {
+        map.setFeatureState({ source: NODE_SOURCE, id: hoveredNodeRef.current }, { hover: false });
+        hoveredNodeRef.current = null;
+      }
+      map.getCanvas().style.cursor = "";
+    };
     const onEdgeEnter = () => { if (!draggingRef.current) map.getCanvas().style.cursor = "pointer"; };
     const onEdgeLeave = () => { if (!draggingRef.current) map.getCanvas().style.cursor = ""; };
 
@@ -205,51 +263,55 @@ export function useNetworkEditor(mapRef, networkData) {
 
     const init = () => {
       if (cancelled || addedRef.current) return;
+      const { nodeFC, edgeFC } = cacheRef.current;
 
-      const net = netRef.current;
-
-      // ── Edge visual layer ──────────────────────────────────────────
-      map.addSource(EDGE_SOURCE, { type: "geojson", data: buildEdgesGeoJSON(net) });
+      map.addSource(EDGE_SOURCE, { type: "geojson", data: edgeFC ?? { type: "FeatureCollection", features: [] } });
       map.addLayer({
-        id: EDGE_LAYER,
-        type: "line",
-        source: EDGE_SOURCE,
-        minzoom: MESO_ZOOM,
+        id: EDGE_LAYER, type: "line", source: EDGE_SOURCE, minzoom: MESO_ZOOM,
         paint: {
           "line-color": "#e85d04",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 16, 1, 18, 2, 20, 3],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 16, 3, 18, 4, 20, 5],
           "line-opacity": 1,
         },
       });
-
-      // ── Edge hit layer (transparent, wider — easier to right-click) ──
       map.addLayer({
-        id: EDGE_HIT,
-        type: "line",
-        source: EDGE_SOURCE,
-        minzoom: MESO_ZOOM,
+        id: EDGE_HIT, type: "line", source: EDGE_SOURCE, minzoom: MESO_ZOOM,
         paint: { "line-width": 14, "line-opacity": 0 },
       });
 
-      // ── Node layer ─────────────────────────────────────────────────
-      map.addSource(NODE_SOURCE, { type: "geojson", data: buildNodesGeoJSON(net) });
+      map.addSource(NODE_SOURCE, { type: "geojson", promoteId: "id", data: nodeFC ?? { type: "FeatureCollection", features: [] } });
       map.addLayer({
-        id: NODE_LAYER,
-        type: "circle",
-        source: NODE_SOURCE,
-        minzoom: MESO_ZOOM,
+        id: NODE_LAYER, type: "circle", source: NODE_SOURCE, minzoom: MESO_ZOOM,
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 16, 2.5, 18, 4.5, 20, 7],
-          "circle-color": "#ffffff",
+          // Base radius scales with zoom; hover → +2px; dragging → +4px
+          "circle-radius": [
+            "interpolate", ["linear"], ["zoom"],
+            16, ["case", ["boolean", ["feature-state", "dragging"], false], 6.5, ["boolean", ["feature-state", "hover"], false], 5.0, 2.5],
+            18, ["case", ["boolean", ["feature-state", "dragging"], false], 9.0, ["boolean", ["feature-state", "hover"], false], 7.0, 4.5],
+            20, ["case", ["boolean", ["feature-state", "dragging"], false], 13,  ["boolean", ["feature-state", "hover"], false], 11,  7  ],
+          ],
+          // Fill: white at rest, orange while dragging
+          "circle-color": [
+            "case",
+            ["boolean", ["feature-state", "dragging"], false], "#e85d04",
+            "#ffffff",
+          ],
+          // Stroke thickens on hover/drag
           "circle-stroke-color": "#e85d04",
-          "circle-stroke-width": 1.5,
+          "circle-stroke-width": [
+            "case",
+            ["boolean", ["feature-state", "dragging"], false], 0,
+            ["boolean", ["feature-state", "hover"],   false], 2.5,
+            1.5,
+          ],
+          // Slight opacity drop when nothing is hovered (resting state recedes)
           "circle-opacity": 1,
         },
       });
 
       addedRef.current = true;
 
-      map.on("mousedown", NODE_LAYER, onNodeMouseDown);
+      map.on("mousedown",  NODE_LAYER, onNodeMouseDown);
       map.on("mousemove",             onMouseMove);
       map.on("mouseup",               onMouseUp);
       map.on("contextmenu", EDGE_HIT, onEdgeContextMenu);
@@ -267,7 +329,7 @@ export function useNetworkEditor(mapRef, networkData) {
       cancelled = true;
       draggingRef.current = null;
       map.off("load", init);
-      map.off("mousedown", NODE_LAYER, onNodeMouseDown);
+      map.off("mousedown",  NODE_LAYER, onNodeMouseDown);
       map.off("mousemove",             onMouseMove);
       map.off("mouseup",               onMouseUp);
       map.off("contextmenu", EDGE_HIT, onEdgeContextMenu);
@@ -282,31 +344,60 @@ export function useNetworkEditor(mapRef, networkData) {
       } catch { /* map may be gone */ }
       addedRef.current = false;
     };
-  }, [mapRef]); // intentionally only mapRef — handlers read state via refs
+  }, [mapRef]);
 
-  // ── Split edge action (called from context menu) ──────────────────────────
+  // ── Split edge ──────────────────────────────────────────────────────────────
   const splitEdge = (edgeId, lng, lat) => {
-    const { nodes, edges } = netRef.current;
+    const { nodes, edges, nodeEdgeIndex } = netRef.current;
+    const { edgeFeatMap, edgeFC, nodeFeatMap, nodeFC } = cacheRef.current;
     const edge = edges.get(edgeId);
     if (!edge) return;
 
     const idx = closestSegmentIdx(edge.nodeIds, nodes, lng, lat);
-    const ts  = Date.now();
+    const ts = Date.now();
     const newNodeId = `n_split_${ts}`;
+    const newNode = { id: newNodeId, lng, lat };
+    nodes.set(newNodeId, newNode);
 
-    const newNodes = new Map(nodes);
-    newNodes.set(newNodeId, { id: newNodeId, lng, lat });
+    // Add node GeoJSON feature
+    const newNodeFeat = { type: "Feature", properties: { id: newNodeId }, geometry: { type: "Point", coordinates: [lng, lat] } };
+    nodeFeatMap.set(newNodeId, newNodeFeat);
+    nodeFC.features.push(newNodeFeat);
 
-    const newEdges = new Map(edges);
-    newEdges.delete(edgeId);
+    // Split edge into two
     const eA = { id: `e_${ts}a`, nodeIds: [...edge.nodeIds.slice(0, idx + 1), newNodeId] };
     const eB = { id: `e_${ts}b`, nodeIds: [newNodeId, ...edge.nodeIds.slice(idx + 1)] };
-    newEdges.set(eA.id, eA);
-    newEdges.set(eB.id, eB);
+    edges.delete(edgeId);
+    edges.set(eA.id, eA);
+    edges.set(eB.id, eB);
 
-    netRef.current = { nodes: newNodes, edges: newEdges };
+    // Update adjacency index
+    for (const nid of edge.nodeIds) nodeEdgeIndex.get(nid)?.delete(edgeId);
+    nodeEdgeIndex.set(newNodeId, new Set([eA.id, eB.id]));
+    for (const e of [eA, eB]) {
+      for (const nid of e.nodeIds) {
+        if (!nodeEdgeIndex.has(nid)) nodeEdgeIndex.set(nid, new Set());
+        nodeEdgeIndex.get(nid).add(e.id);
+      }
+    }
+
+    // Remove old edge feature, add two new ones
+    const oldFeatIdx = edgeFC.features.findIndex((f) => f.properties.id === edgeId);
+    if (oldFeatIdx !== -1) edgeFC.features.splice(oldFeatIdx, 1);
+    edgeFeatMap.delete(edgeId);
+
+    for (const e of [eA, eB]) {
+      const coords = e.nodeIds.map((id) => nodes.get(id)).filter(Boolean).map((n) => [n.lng, n.lat]);
+      const f = { type: "Feature", properties: { id: e.id }, geometry: { type: "LineString", coordinates: coords } };
+      edgeFeatMap.set(e.id, f);
+      edgeFC.features.push(f);
+    }
+
     const map = mapRef.current;
-    if (map) syncData(map, netRef.current);
+    if (map) {
+      map.getSource(NODE_SOURCE)?.setData(nodeFC);
+      map.getSource(EDGE_SOURCE)?.setData(edgeFC);
+    }
     setContextMenu(null);
   };
 
