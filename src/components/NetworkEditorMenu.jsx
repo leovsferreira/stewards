@@ -1,18 +1,23 @@
 /**
  * NetworkEditorMenu
  *
- * Floating context menu that appears when the user right-clicks a network edge.
+ * Floating context menu that appears when the user right-clicks a network
+ * edge OR a network node.
+ *
  * Must be rendered inside a `position: relative` container (leftPane).
  *
  * Props:
- *   contextMenu   – { edgeId, x, y, lng, lat } | null
+ *   contextMenu    – { type: 'edge', edgeId, x, y, lng, lat }
+ *                  | { type: 'node', nodeId, x, y }
+ *                  | null
  *   setContextMenu – setter to dismiss
- *   splitEdge     – (edgeId, lng, lat) → void
+ *   splitEdge      – (edgeId, lng, lat) → void
+ *   deleteNode     – (nodeId) → void
  */
-export function NetworkEditorMenu({ contextMenu, setContextMenu, splitEdge }) {
+export function NetworkEditorMenu({ contextMenu, setContextMenu, splitEdge, deleteNode }) {
   if (!contextMenu) return null;
 
-  const { edgeId, x, y, lng, lat } = contextMenu;
+  const { type, x, y } = contextMenu;
 
   return (
     <div
@@ -22,13 +27,27 @@ export function NetworkEditorMenu({ contextMenu, setContextMenu, splitEdge }) {
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="editorMenuTitle">Edge</div>
-      <button
-        className="editorMenuItem"
-        onClick={() => splitEdge(edgeId, lng, lat)}
-      >
-        ✂ Split edge
-      </button>
+      {type === "edge" ? (
+        <>
+          <div className="editorMenuTitle">Edge</div>
+          <button
+            className="editorMenuItem"
+            onClick={() => splitEdge(contextMenu.edgeId, contextMenu.lng, contextMenu.lat)}
+          >
+            ✂ Split edge
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="editorMenuTitle">Node</div>
+          <button
+            className="editorMenuItem danger"
+            onClick={() => deleteNode(contextMenu.nodeId)}
+          >
+            🗑 Delete node
+          </button>
+        </>
+      )}
       <button
         className="editorMenuItem cancel"
         onClick={() => setContextMenu(null)}

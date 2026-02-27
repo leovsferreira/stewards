@@ -18,7 +18,7 @@ export function MapView({ meta2x2, sortKey, children }) {
 
   const valueRange  = useHeatmap(mapRef, meta2x2, sortKey, heatmapOn);
   const networkData = useNetworkData();
-  const { contextMenu, setContextMenu, splitEdge } = useNetworkEditor(mapRef, networkData);
+  const { contextMenu, setContextMenu, splitEdge, deleteNode } = useNetworkEditor(mapRef, networkData);
 
   return (
     <>
@@ -31,6 +31,7 @@ export function MapView({ meta2x2, sortKey, children }) {
           contextMenu={contextMenu}
           setContextMenu={setContextMenu}
           splitEdge={splitEdge}
+          deleteNode={deleteNode}
         />
 
         {/* Heatmap toggle */}

@@ -67,7 +67,8 @@ function buildCaches({ nodes, edges }) {
   const edgeFC = {
     type: "FeatureCollection",
     features: [...edges.values()].flatMap((e) => {
-      const coords = e.nodeIds.map((id) => nodes.get(id)).filter(Boolean).map((n) => [n.lng, n.lat]);
+      const coords = e.nodeIds.map((id) => nodes.get(id)).filter(Boolean).map((n) =>
+        [n.lng, n.lat]);
       if (coords.length < 2) return [];
       const f = {
         type: "Feature",
@@ -99,9 +100,9 @@ function closestSegmentIdx(nodeIds, nodes, lng, lat) {
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useNetworkEditor(mapRef, networkData) {
-  const addedRef    = useRef(false);
-  const netRef      = useRef({ nodes: new Map(), edges: new Map(), nodeEdgeIndex: new Map() });
-  const cacheRef    = useRef({ nodeFC: null, edgeFC: null, nodeFeatMap: new Map(), edgeFeatMap: new Map() });
+  const addedRef       = useRef(false);
+  const netRef         = useRef({ nodes: new Map(), edges: new Map(), nodeEdgeIndex: new Map() });
+  const cacheRef       = useRef({ nodeFC: null, edgeFC: null, nodeFeatMap: new Map(), edgeFeatMap: new Map() });
   const draggingRef    = useRef(null); // { nodeId, origLng, origLat }
   const hoveredNodeRef = useRef(null); // nodeId currently under cursor
 
@@ -165,6 +166,8 @@ export function useNetworkEditor(mapRef, networkData) {
     };
 
     const onNodeMouseDown = (e) => {
+      // Ignore right-clicks — those go to the context menu
+      if (e.originalEvent?.button !== 0) return;
       e.preventDefault();
       const nodeId = e.features?.[0]?.properties?.id;
       if (!nodeId) return;
@@ -235,7 +238,16 @@ export function useNetworkEditor(mapRef, networkData) {
       e.preventDefault();
       const edgeId = e.features?.[0]?.properties?.id;
       if (!edgeId) return;
-      setContextMenu({ edgeId, x: e.point.x, y: e.point.y, lng: e.lngLat.lng, lat: e.lngLat.lat });
+      setContextMenu({ type: "edge", edgeId, x: e.point.x, y: e.point.y, lng: e.lngLat.lng, lat: e.lngLat.lat });
+    };
+
+    // ── NEW: right-click on a node ────────────────────────────────────────────
+    const onNodeContextMenu = (e) => {
+      e.preventDefault();
+      if (draggingRef.current) return; // ignore right-clicks during drag
+      const nodeId = e.features?.[0]?.properties?.id;
+      if (!nodeId) return;
+      setContextMenu({ type: "node", nodeId, x: e.point.x, y: e.point.y });
     };
 
     const onMapClick = () => setContextMenu(null);
@@ -283,20 +295,17 @@ export function useNetworkEditor(mapRef, networkData) {
       map.addLayer({
         id: NODE_LAYER, type: "circle", source: NODE_SOURCE, minzoom: MESO_ZOOM,
         paint: {
-          // Base radius scales with zoom; hover → +2px; dragging → +4px
           "circle-radius": [
             "interpolate", ["linear"], ["zoom"],
             16, ["case", ["boolean", ["feature-state", "dragging"], false], 6.5, ["boolean", ["feature-state", "hover"], false], 5.0, 2.5],
             18, ["case", ["boolean", ["feature-state", "dragging"], false], 9.0, ["boolean", ["feature-state", "hover"], false], 7.0, 4.5],
             20, ["case", ["boolean", ["feature-state", "dragging"], false], 13,  ["boolean", ["feature-state", "hover"], false], 11,  7  ],
           ],
-          // Fill: white at rest, orange while dragging
           "circle-color": [
             "case",
             ["boolean", ["feature-state", "dragging"], false], "#e85d04",
             "#ffffff",
           ],
-          // Stroke thickens on hover/drag
           "circle-stroke-color": "#e85d04",
           "circle-stroke-width": [
             "case",
@@ -304,22 +313,22 @@ export function useNetworkEditor(mapRef, networkData) {
             ["boolean", ["feature-state", "hover"],   false], 2.5,
             1.5,
           ],
-          // Slight opacity drop when nothing is hovered (resting state recedes)
           "circle-opacity": 1,
         },
       });
 
       addedRef.current = true;
 
-      map.on("mousedown",  NODE_LAYER, onNodeMouseDown);
-      map.on("mousemove",             onMouseMove);
-      map.on("mouseup",               onMouseUp);
-      map.on("contextmenu", EDGE_HIT, onEdgeContextMenu);
-      map.on("click",                 onMapClick);
+      map.on("mousedown",   NODE_LAYER, onNodeMouseDown);
+      map.on("mousemove",              onMouseMove);
+      map.on("mouseup",                onMouseUp);
+      map.on("contextmenu", EDGE_HIT,  onEdgeContextMenu);
+      map.on("contextmenu", NODE_LAYER, onNodeContextMenu); // ← NEW
+      map.on("click",                  onMapClick);
       map.on("mouseenter", NODE_LAYER, onNodeEnter);
       map.on("mouseleave", NODE_LAYER, onNodeLeave);
-      map.on("mouseenter", EDGE_HIT,  onEdgeEnter);
-      map.on("mouseleave", EDGE_HIT,  onEdgeLeave);
+      map.on("mouseenter", EDGE_HIT,   onEdgeEnter);
+      map.on("mouseleave", EDGE_HIT,   onEdgeLeave);
     };
 
     if (map.isStyleLoaded()) init();
@@ -329,15 +338,16 @@ export function useNetworkEditor(mapRef, networkData) {
       cancelled = true;
       draggingRef.current = null;
       map.off("load", init);
-      map.off("mousedown",  NODE_LAYER, onNodeMouseDown);
-      map.off("mousemove",             onMouseMove);
-      map.off("mouseup",               onMouseUp);
-      map.off("contextmenu", EDGE_HIT, onEdgeContextMenu);
-      map.off("click",                 onMapClick);
+      map.off("mousedown",   NODE_LAYER, onNodeMouseDown);
+      map.off("mousemove",              onMouseMove);
+      map.off("mouseup",                onMouseUp);
+      map.off("contextmenu", EDGE_HIT,  onEdgeContextMenu);
+      map.off("contextmenu", NODE_LAYER, onNodeContextMenu); // ← NEW
+      map.off("click",                  onMapClick);
       map.off("mouseenter", NODE_LAYER, onNodeEnter);
       map.off("mouseleave", NODE_LAYER, onNodeLeave);
-      map.off("mouseenter", EDGE_HIT,  onEdgeEnter);
-      map.off("mouseleave", EDGE_HIT,  onEdgeLeave);
+      map.off("mouseenter", EDGE_HIT,   onEdgeEnter);
+      map.off("mouseleave", EDGE_HIT,   onEdgeLeave);
       try {
         [NODE_LAYER, EDGE_HIT, EDGE_LAYER].forEach((l) => { if (map.getLayer(l)) map.removeLayer(l); });
         [NODE_SOURCE, EDGE_SOURCE].forEach((s) => { if (map.getSource(s)) map.removeSource(s); });
@@ -401,5 +411,40 @@ export function useNetworkEditor(mapRef, networkData) {
     setContextMenu(null);
   };
 
-  return { contextMenu, setContextMenu, splitEdge };
+  // ── Delete node ─────────────────────────────────────────────────────────────
+  const deleteNode = (nodeId) => {
+    const { nodes, edges, nodeEdgeIndex } = netRef.current;
+    const { nodeFeatMap, nodeFC, edgeFeatMap, edgeFC } = cacheRef.current;
+
+    // 1. Remove all edges connected to this node
+    const connectedEdgeIds = new Set(nodeEdgeIndex.get(nodeId) ?? []);
+    for (const eid of connectedEdgeIds) {
+      edges.delete(eid);
+      edgeFeatMap.delete(eid);
+      const idx = edgeFC.features.findIndex((f) => f.properties.id === eid);
+      if (idx !== -1) edgeFC.features.splice(idx, 1);
+    }
+
+    // Clean up the adjacency index for all other nodes that referenced those edges
+    for (const [nid, edgeSet] of nodeEdgeIndex) {
+      for (const eid of connectedEdgeIds) edgeSet.delete(eid);
+    }
+
+    // 2. Remove the node itself
+    nodes.delete(nodeId);
+    nodeEdgeIndex.delete(nodeId);
+    nodeFeatMap.delete(nodeId);
+    const nIdx = nodeFC.features.findIndex((f) => f.properties.id === nodeId);
+    if (nIdx !== -1) nodeFC.features.splice(nIdx, 1);
+
+    // 3. Push updated data to the map
+    const map = mapRef.current;
+    if (map) {
+      map.getSource(NODE_SOURCE)?.setData(nodeFC);
+      map.getSource(EDGE_SOURCE)?.setData(edgeFC);
+    }
+    setContextMenu(null);
+  };
+
+  return { contextMenu, setContextMenu, splitEdge, deleteNode };
 }
