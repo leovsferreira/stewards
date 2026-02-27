@@ -51,7 +51,8 @@ export function MapView({ meta2x2, sortKey, children }) {
         )}
       </div>
 
-      {children({ bounds, mapZoom, flyToTile, fitToTile, networkData })}
+      {/* Pass mapRef so children can mount additional map layers */}
+      {children({ bounds, mapZoom, flyToTile, fitToTile, networkData, mapRef })}
     </>
   );
 }

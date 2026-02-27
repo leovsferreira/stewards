@@ -110,8 +110,8 @@ export function useMap() {
 
     const [w, s, e, n] = tileToLngLatBounds(tile.x, tile.y, tile.z);
     map.fitBounds([[w, s], [e, n]], {
-      padding: 20,
-      duration: 600,
+      padding: 10,
+      duration: 600
     });
   };
 

@@ -2,19 +2,21 @@ import { useState } from "react";
 import { MapView } from "./components/Map";
 import { useMetadata } from "./hooks/useMetadata";
 import { useTiles } from "./hooks/useTiles";
+import { useTileBorders } from "./hooks/useTileBorders";
 import { TileRow } from "./components/TileRow";
+import { tileToLngLatBounds } from "./utils/tileUtils";
 import "./App.css";
 
 const VIEW_LABELS = {
-  macro: "8 × 8 Tiles",
-  meso: "2 × 2 Tiles",
-  micro: "2 × 2 Tiles",
+  macro: "8 x 8 Tiles",
+  meso: "2 x 2 Tiles",
+  micro: "2 x 2 Tiles",
 };
 
 const LOADING_LABELS = {
-  macro: "Loading 8 × 8 metadata...",
-  meso: "Loading 2 × 2 metadata...",
-  micro: "Loading 2 × 2 metadata...",
+  macro: "Loading 8 x 8 metadata...",
+  meso: "Loading 2 x 2 metadata...",
+  micro: "Loading 2 x 2 metadata...",
 };
 
 const LEVEL_BADGES = {
@@ -23,6 +25,28 @@ const LEVEL_BADGES = {
   micro: "MICRO",
 };
 
+function dominantTile(tiles, bounds) {
+  if (!tiles.length || !bounds) return tiles[0] ?? null;
+
+  let best = tiles[0];
+  let bestArea = -1;
+
+  for (const t of tiles) {
+    const [tw, ts, te, tn] = tileToLngLatBounds(t.x, t.y, t.z);
+    const iw = Math.max(tw, bounds.west);
+    const ie = Math.min(te, bounds.east);
+    const is_ = Math.max(ts, bounds.south);
+    const in_ = Math.min(tn, bounds.north);
+    const area = Math.max(0, ie - iw) * Math.max(0, in_ - is_);
+    if (area > bestArea) {
+      bestArea = area;
+      best = t;
+    }
+  }
+
+  return best;
+}
+
 export default function App() {
   const [sortKey, setSortKey] = useState("n_uncertain");
   const { meta8x8, meta2x2 } = useMetadata();
@@ -30,7 +54,7 @@ export default function App() {
   return (
     <div className="page">
       <MapView meta2x2={meta2x2} sortKey={sortKey}>
-        {({ bounds, mapZoom, flyToTile, fitToTile, networkData }) => {
+        {({ bounds, mapZoom, flyToTile, fitToTile, networkData, mapRef }) => {
           const { tiles, activeMeta, activeMetaById, viewLevel } = useTiles({
             bounds,
             mapZoom,
@@ -39,22 +63,25 @@ export default function App() {
             sortKey,
           });
 
-          // Determine click handler per view level
+          useTileBorders(mapRef, tiles);
+
+          const displayTiles =
+            viewLevel === "micro" && tiles.length > 0
+              ? [dominantTile(tiles, bounds)].filter(Boolean)
+              : tiles;
+
           const getClickHandler = (tile) => {
             switch (viewLevel) {
               case "macro":
-                // Clicking 8×8 tile → fly to it (enters meso)
                 return () => flyToTile(tile);
               case "meso":
               case "micro":
-                // Clicking 2×2 tile → fit exactly (enters/stays micro)
                 return () => fitToTile(tile);
               default:
                 return undefined;
             }
           };
 
-          // Suggestions visible at meso + micro, hidden at macro
           const showSuggestions = viewLevel !== "macro";
 
           return (
@@ -90,12 +117,16 @@ export default function App() {
                       </option>
                     </select>
                   </label>
-                  <div className="count">{tiles.length} tiles</div>
+                  <div className="count">
+                    {viewLevel === "micro"
+                      ? `1 of ${tiles.length} tiles`
+                      : `${tiles.length} tiles`}
+                  </div>
                 </div>
               </div>
 
               <div className="list">
-                {tiles.map((t) => (
+                {displayTiles.map((t) => (
                   <TileRow
                     key={`${t.z}_${t.id}`}
                     tile={t}
