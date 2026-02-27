@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMap } from "../hooks/useMap";
 import { useHeatmap } from "../hooks/useHeatmap";
-import { useNetwork } from "../hooks/useNetwork";
+import { useNetworkEditor } from "../hooks/useNetworkEditor";
 import { useNetworkData } from "../hooks/useNetworkData";
+import { NetworkEditorMenu } from "./NetworkEditorMenu";
 
 function formatValue(v) {
   if (v === undefined || v === null) return "—";
@@ -15,14 +16,22 @@ export function MapView({ meta2x2, sortKey, children }) {
   const { mapContainerRef, mapRef, bounds, mapZoom, flyToTile, fitToTile } = useMap();
   const [heatmapOn, setHeatmapOn] = useState(true);
 
-  const valueRange = useHeatmap(mapRef, meta2x2, sortKey, heatmapOn);
+  const valueRange  = useHeatmap(mapRef, meta2x2, sortKey, heatmapOn);
   const networkData = useNetworkData();
-  useNetwork(mapRef, networkData);
+  const { contextMenu, setContextMenu, splitEdge } = useNetworkEditor(mapRef, networkData);
 
   return (
     <>
-      <div className="leftPane">
+      {/* ── Map pane ───────────────────────────────────────────────── */}
+      <div className="leftPane" style={{ position: "relative" }}>
         <div ref={mapContainerRef} className="map" />
+
+        {/* Network editor context menu */}
+        <NetworkEditorMenu
+          contextMenu={contextMenu}
+          setContextMenu={setContextMenu}
+          splitEdge={splitEdge}
+        />
 
         {/* Heatmap toggle */}
         <div className="mapOverlayControl">
@@ -51,7 +60,7 @@ export function MapView({ meta2x2, sortKey, children }) {
         )}
       </div>
 
-      {/* Pass mapRef so children can mount additional map layers */}
+      {/* ── Right pane (render prop) ────────────────────────────────── */}
       {children({ bounds, mapZoom, flyToTile, fitToTile, networkData, mapRef })}
     </>
   );
