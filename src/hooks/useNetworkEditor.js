@@ -6,6 +6,7 @@ const EDGE_HIT    = "editor-edges-hit";
 const NODE_SOURCE = "editor-nodes-source";
 const NODE_LAYER  = "editor-nodes-layer";
 const MESO_ZOOM   = 16;
+const MICRO_ZOOM = 18.5;
 
 // ── Parse GeoJSON → node/edge graph + adjacency index ────────────────────────
 
@@ -287,13 +288,13 @@ export function useNetworkEditor(mapRef, networkData) {
         },
       });
       map.addLayer({
-        id: EDGE_HIT, type: "line", source: EDGE_SOURCE, minzoom: MESO_ZOOM,
+        id: EDGE_HIT, type: "line", source: EDGE_SOURCE, minzoom: MICRO_ZOOM,
         paint: { "line-width": 14, "line-opacity": 0 },
       });
 
       map.addSource(NODE_SOURCE, { type: "geojson", promoteId: "id", data: nodeFC ?? { type: "FeatureCollection", features: [] } });
       map.addLayer({
-        id: NODE_LAYER, type: "circle", source: NODE_SOURCE, minzoom: MESO_ZOOM,
+        id: NODE_LAYER, type: "circle", source: NODE_SOURCE, minzoom: MICRO_ZOOM,
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["zoom"],
