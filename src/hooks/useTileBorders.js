@@ -4,6 +4,11 @@ import { tileToLngLatBounds } from "../utils/tileUtils";
 const SOURCE_ID = "tile-borders-source";
 const LAYER_ID  = "tile-borders-layer";
 
+const FOCUS_SOURCE = "tile-focus-source";
+const FOCUS_FRAME  = "tile-focus-frame";
+
+const EMPTY_FC = { type: "FeatureCollection", features: [] };
+
 function buildGeoJSON(tiles) {
   return {
     type: "FeatureCollection",
@@ -21,19 +26,60 @@ function buildGeoJSON(tiles) {
   };
 }
 
-/**
- * Adds thin border lines around each visible tile on the map.
- *
- * • Source + layer are created once on mount and cleaned up on unmount.
- * • When `tiles` changes the GeoJSON data is hot-swapped via setData —
- *   no layer teardown needed.
- */
-export function useTileBorders(mapRef, tiles) {
-  const addedRef  = useRef(false);
-  const tilesRef  = useRef(tiles);
-  tilesRef.current = tiles;
+function buildFrameGeoJSON(tile) {
+  if (!tile) return EMPTY_FC;
 
-  // ── Mount: create source + layer once ───────────────────────────────
+  const [w, s, e, n] = tileToLngLatBounds(tile.x, tile.y, tile.z);
+
+  const padLng = (e - w) * 0.015;
+  const padLat = (n - s) * 0.015;
+
+  const outer = [
+    [w - padLng, n + padLat],
+    [e + padLng, n + padLat],
+    [e + padLng, s - padLat],
+    [w - padLng, s - padLat],
+    [w - padLng, n + padLat],
+  ];
+
+  const inner = [
+    [w, n],
+    [w, s],
+    [e, s],
+    [e, n],
+    [w, n],
+  ];
+
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          coordinates: [outer, inner],
+        },
+        properties: {},
+      },
+    ],
+  };
+}
+
+/**
+ * Adds thin border lines around each visible tile on the map,
+ * plus a red frame highlight for the focus tile at micro zoom.
+ *
+ * @param {React.RefObject} mapRef     – map instance ref
+ * @param {Array}           tiles      – visible tiles
+ * @param {Object|null}     focusTile  – dominant tile at micro zoom (or null)
+ */
+export function useTileBorders(mapRef, tiles, focusTile = null) {
+  const addedRef    = useRef(false);
+  const tilesRef    = useRef(tiles);
+  const focusRef    = useRef(focusTile);
+  tilesRef.current  = tiles;
+  focusRef.current  = focusTile;
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -50,16 +96,32 @@ export function useTileBorders(mapRef, tiles) {
         id: LAYER_ID,
         type: "line",
         source: SOURCE_ID,
-        minzoom: 14,           // only show at meso / micro
+        minzoom: 14,
         paint: {
           "line-color": "#ffffff",
           "line-opacity": 0.55,
-          "line-width": [      // thinner at far zoom, stays 1px up close
+          "line-width": [
             "interpolate", ["linear"], ["zoom"],
             14, 0.5,
             18, 1.0,
             20, 1.5,
           ],
+        },
+      });
+
+      map.addSource(FOCUS_SOURCE, {
+        type: "geojson",
+        data: buildFrameGeoJSON(focusRef.current),
+      });
+
+      map.addLayer({
+        id: FOCUS_FRAME,
+        type: "fill",
+        source: FOCUS_SOURCE,
+        minzoom: 18,
+        paint: {
+          "fill-color": "#ffffff",
+          "fill-opacity": 0.7,
         },
       });
 
@@ -71,18 +133,26 @@ export function useTileBorders(mapRef, tiles) {
 
     return () => {
       try {
-        if (map.getLayer(LAYER_ID))  map.removeLayer(LAYER_ID);
-        if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+        if (map.getLayer(FOCUS_FRAME))  map.removeLayer(FOCUS_FRAME);
+        if (map.getSource(FOCUS_SOURCE)) map.removeSource(FOCUS_SOURCE);
+        if (map.getLayer(LAYER_ID))     map.removeLayer(LAYER_ID);
+        if (map.getSource(SOURCE_ID))   map.removeSource(SOURCE_ID);
       } catch { /* map may be gone */ }
       addedRef.current = false;
     };
   }, [mapRef]);
 
-  // ── Update: hot-swap GeoJSON when tiles list changes ─────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !addedRef.current) return;
     const src = map.getSource(SOURCE_ID);
     if (src) src.setData(buildGeoJSON(tiles));
   }, [mapRef, tiles]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !addedRef.current) return;
+    const src = map.getSource(FOCUS_SOURCE);
+    if (src) src.setData(buildFrameGeoJSON(focusTile));
+  }, [mapRef, focusTile]);
 }

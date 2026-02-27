@@ -63,12 +63,12 @@ export default function App() {
             sortKey,
           });
 
-          useTileBorders(mapRef, tiles);
-
           const focusTile =
             viewLevel === "micro" && tiles.length > 0
               ? dominantTile(tiles, bounds)
               : null;
+
+          useTileBorders(mapRef, tiles, focusTile);
 
           const displayTiles = focusTile ? [] : tiles;
 
