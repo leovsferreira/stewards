@@ -65,10 +65,12 @@ export default function App() {
 
           useTileBorders(mapRef, tiles);
 
-          const displayTiles =
+          const focusTile =
             viewLevel === "micro" && tiles.length > 0
-              ? [dominantTile(tiles, bounds)].filter(Boolean)
-              : tiles;
+              ? dominantTile(tiles, bounds)
+              : null;
+
+          const displayTiles = focusTile ? [] : tiles;
 
           const getClickHandler = (tile) => {
             switch (viewLevel) {
@@ -82,7 +84,7 @@ export default function App() {
             }
           };
 
-          const showSuggestions = viewLevel !== "macro";
+          const showSuggestions = viewLevel === "meso";
 
           return (
             <div className={`rightPane ${viewLevel}`}>
@@ -95,6 +97,8 @@ export default function App() {
                   <div className="sub">
                     {!activeMeta
                       ? LOADING_LABELS[viewLevel]
+                      : viewLevel === "micro" && focusTile
+                      ? `Tile ${focusTile.id} · Zoom ${mapZoom.toFixed(2)}`
                       : bounds
                       ? `Zoom ${mapZoom.toFixed(2)} · W ${bounds.west.toFixed(4)} · S ${bounds.south.toFixed(4)} · E ${bounds.east.toFixed(4)} · N ${bounds.north.toFixed(4)}`
                       : "Waiting for map..."}
@@ -125,20 +129,30 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="list">
-                {displayTiles.map((t) => (
-                  <TileRow
-                    key={`${t.z}_${t.id}`}
-                    tile={t}
-                    meta={activeMetaById?.get(t.id)}
-                    sortKey={sortKey}
-                    onClick={getClickHandler(t)}
-                    showSuggestions={showSuggestions}
-                    networkData={networkData}
-                    thumbSize={viewLevel === "macro" ? 300 : 160}
-                  />
-                ))}
-              </div>
+              {viewLevel === "micro" && focusTile ? (
+                <div className="microSuggestionsGrid">
+                  {Array.from({ length: 20 }).map((_, i) => (
+                    <div key={i} className="suggestionCard">
+                      Suggestion {i + 1}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="list">
+                  {displayTiles.map((t) => (
+                    <TileRow
+                      key={`${t.z}_${t.id}`}
+                      tile={t}
+                      meta={activeMetaById?.get(t.id)}
+                      sortKey={sortKey}
+                      onClick={getClickHandler(t)}
+                      showSuggestions={showSuggestions}
+                      networkData={networkData}
+                      thumbSize={viewLevel === "macro" ? 300 : 160}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           );
         }}

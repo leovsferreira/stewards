@@ -144,7 +144,7 @@
   white-space: nowrap;
 }
 
-/* Suggestions */
+/* Suggestions — meso horizontal scroller */
 .suggestionsWrap {
   flex: 1;
   overflow: hidden;
@@ -176,6 +176,27 @@
   flex: 0 0 auto;
 }
 
+/* Micro view — 2-column suggestions grid */
+.microSuggestionsGrid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-content: start;
+}
+
+.microSuggestionsGrid .suggestionCard {
+  min-width: 0;
+  width: 100%;
+  height: unset;
+  aspect-ratio: 1 / 1;
+  flex: unset;
+}
+
+/* Controls */
 .controls {
   display: flex;
   align-items: center;
@@ -361,4 +382,3 @@
   color: #999;
   font-size: 12px;
 }
-
