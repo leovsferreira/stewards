@@ -15,7 +15,7 @@ export const PCP_AXES = [
 // ── SVG viewport constants ────────────────────────────────────────────────────
 const VW      = 900;
 const VH      = 360;
-const TOP_PAD = 32;           // horizontal labels need less top space
+const TOP_PAD = 32;
 const BOT_PAD = 20;
 const L_PAD   = 28;
 const R_PAD   = 28;
@@ -25,16 +25,15 @@ const STEP    = (VW - L_PAD - R_PAD) / (N - 1);
 const axX     = (i) => L_PAD + i * STEP;
 
 // ── Colors ────────────────────────────────────────────────────────────────────
-const LINE_DEFAULT   = "#b0b8c4";   // ③ all lines same neutral color
-const LINE_HIGHLIGHT = "#3b82f6";   // highlighted (selected) lines
-const LINE_DIM       = "#dde3ec";   // dimmed unselected lines
+const LINE_DEFAULT   = "#b0b8c4";
+const LINE_HIGHLIGHT = "#3b82f6";
+const LINE_DIM       = "#dde3ec";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const ynToY   = (yn)          => TOP_PAD + yn * AXIS_H;
 const yToYn   = (svgY)        => Math.max(0, Math.min(1, (svgY - TOP_PAD) / AXIS_H));
-const valToYn = (min, max, v) => 1 - (v - min) / (max - min); // high val → top
+const valToYn = (min, max, v) => 1 - (v - min) / (max - min);
 
-// ⑤ Compact value formatter for tick labels
 function fmtVal(v) {
   if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}k`;
   if (Number.isInteger(v) || Math.abs(v) >= 100) return v.toFixed(0);
@@ -64,7 +63,7 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
   const onFilterRef               = useRef(onFilterChange);
   onFilterRef.current             = onFilterChange;
 
-  // ① Restrict lines to only tiles visible in the current viewport
+  // ── Restrict lines to only tiles visible in the current viewport ──────────
   const visibleData = useMemo(() => {
     if (!visibleIds || visibleIds.size === 0) return data;
     return data.filter((d) => visibleIds.has(d.tile_id));
@@ -82,9 +81,16 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
     return out;
   }, [data]);
 
-  // ── Filtered tile IDs (subset of visibleData) ─────────────────────────────
+  // ── dispBrushes: merge committed brushes + live brush (must come first) ───
+  const dispBrushes = useMemo(() => {
+    const m = { ...brushes };
+    if (liveBrush) m[liveBrush.axisKey] = liveBrush;
+    return m;
+  }, [brushes, liveBrush]);
+
+  // ── Filtered tile IDs — computed from dispBrushes for real-time updates ───
   const filteredIds = useMemo(() => {
-    const active = Object.entries(brushes).filter(([, b]) => !!b);
+    const active = Object.entries(dispBrushes).filter(([, b]) => !!b);
     if (active.length === 0) return null;
 
     return new Set(
@@ -99,9 +105,9 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
         })
         .map((d) => d.tile_id)
     );
-  }, [brushes, visibleData, scales]);
+  }, [dispBrushes, visibleData, scales]);
 
-  // Notify parent only when the actual set of IDs changes (not just reference)
+  // Notify parent only when the actual set of IDs changes
   const prevFilteredRef = useRef(null);
   useEffect(() => {
     const prev = prevFilteredRef.current;
@@ -118,6 +124,14 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
       onFilterRef.current(curr);
     }
   }, [filteredIds]);
+
+  // When leaving macro view the PCP unmounts — reset the parent filter so
+  // tiles aren't stale-filtered when returning to macro
+  useEffect(() => {
+    return () => {
+      onFilterRef.current(null);
+    };
+  }, []);
 
   // ── SVG helpers ───────────────────────────────────────────────────────────
   const clientToSvgY = useCallback((clientY) => {
@@ -209,19 +223,16 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
     };
   }, [clientToSvgY]);
 
-  const dispBrushes = useMemo(() => {
-    const m = { ...brushes };
-    if (liveBrush) m[liveBrush.axisKey] = liveBrush;
-    return m;
-  }, [brushes, liveBrush]);
-
   const hasBrush = Object.keys(brushes).length > 0;
+
+  // ── Sorted-by label ───────────────────────────────────────────────────────
+  const sortLabel = PCP_AXES.find((a) => a.key === sortKey)?.label ?? sortKey;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="pcpWrapper">
       <div className="pcpHeader">
-        <span className="pcpTitle">Filter &amp; Sort</span>
+        <span className="pcpTitle">Sorted by {sortLabel}</span>
         {hasBrush && (
           <button className="pcpClearBtn" onClick={() => setBrushes({})}>
             Clear filters
@@ -242,7 +253,7 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
         height={VH}
         style={{ display: "block" }}
       >
-        {/* ③ Draw dimmed lines first (under), highlighted lines on top */}
+        {/* Draw dimmed lines first (under), highlighted lines on top */}
         {filteredIds !== null &&
           visibleData
             .filter((d) => !filteredIds.has(d.tile_id))
@@ -277,7 +288,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
           const isSort = key === sortKey;
           const { min, max } = scales[key] ?? { min: 0, max: 1 };
 
-          // ⑤ Five ticks: 0%, 25%, 50%, 75%, 100% along axis
           const tickFracs = [0, 0.25, 0.5, 0.75, 1];
           const ticks = tickFracs.map((f) => ({
             y:   ynToY(f),
@@ -306,7 +316,7 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
                 pointerEvents="none"
               />
 
-              {/* ⑤ Tick marks + value labels */}
+              {/* Tick marks + value labels */}
               {ticks.map(({ y, val }, ti) => (
                 <g key={ti} pointerEvents="none">
                   <line
@@ -359,7 +369,7 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
                 </g>
               )}
 
-              {/* ② Horizontal axis label centered on the axis */}
+              {/* Axis label — click to sort */}
               <text
                 x={x}
                 y={TOP_PAD - 10}
