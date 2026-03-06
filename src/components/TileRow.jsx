@@ -12,6 +12,7 @@ import { NetworkOverlay } from "./NetworkOverlay";
  *   showSuggestions – whether to render the suggestion cards
  *   networkData     – parsed GeoJSON FeatureCollection (or null)
  *   thumbSize       – thumbnail pixel size (default 160)
+ *   onImageError    – (tileId: string) => void — called when image returns 404
  */
 export function TileRow({ tile, meta, sortKey, onClick, showSuggestions, networkData, thumbSize = 160 }) {
   const imgUrl = `/tiles/${tile.z}/${tile.x}/${tile.y}.jpg`;

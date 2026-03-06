@@ -413,3 +413,113 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DIFF-style notes — paste these additions / replacements into App.css
+   ─────────────────────────────────────────────────────────────────────────────
+
+   1.  Change .rightPane.macro width from 360px → 50%
+   2.  Remove .rightPane.macro .row { justify-content: center }
+   3.  Remove .rightPane.macro .thumbWrap { align-items: center }
+   4.  Add .macroGrid, .pcpWrapper, .pcpHeader, .pcpTitle, .pcpClearBtn, .pcpCount
+   ─────────────────────────────────────────────────────────────────────────────
+*/
+
+/* ── Replace the old macro overrides block with this ── */
+.rightPane.macro {
+  width: 50%;
+}
+
+/* ── Macro 3-column tile grid ── */
+.macroGrid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  align-content: start;
+}
+
+/* Inside the macro grid, each row stretches to fill its cell */
+.macroGrid .row {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px;
+  gap: 6px;
+}
+
+.macroGrid .thumbWrap {
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: stretch;
+}
+
+.macroGrid .thumbContainer {
+  width: 100% !important;
+  height: 0 !important;
+  padding-bottom: 100%;   /* square aspect ratio */
+  position: relative;
+}
+
+.macroGrid .thumb {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+.macroGrid .networkOverlay {
+  /* keep overlay covering the absolute-positioned thumb */
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── Parallel Coordinate Chart ── */
+.pcpWrapper {
+  flex-shrink: 0;
+  background: white;
+  border-bottom: 1px solid #e3e3e3;
+  padding: 8px 10px 4px;
+}
+
+.pcpHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.pcpTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #444;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pcpClearBtn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #4a90d9;
+  background: white;
+  color: #4a90d9;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.pcpClearBtn:hover {
+  background: #4a90d9;
+  color: white;
+}
+
+.pcpCount {
+  font-size: 11px;
+  color: #888;
+  margin-left: auto;
+}
