@@ -7,9 +7,10 @@ import { tileToLngLatBounds } from "../utils/tileUtils";
  * Props:
  *   tile         – { z, x, y, id }
  *   networkData  – parsed GeoJSON FeatureCollection
- *   size         – thumbnail pixel size (default 160)
+ *   size         – coordinate space for path math (default 160)
+ *   fill         – if true, SVG stretches to 100%×100% of its container
  */
-export function NetworkOverlay({ tile, networkData, size = 160 }) {
+export function NetworkOverlay({ tile, networkData, size = 160, fill = false }) {
   const paths = useMemo(() => {
     if (!networkData?.features) return [];
 
@@ -17,7 +18,6 @@ export function NetworkOverlay({ tile, networkData, size = 160 }) {
     const geoW = east - west;
     const geoH = north - south;
 
-    // Filter features whose bbox intersects the tile
     const lines = [];
 
     for (const f of networkData.features) {
@@ -27,7 +27,6 @@ export function NetworkOverlay({ tile, networkData, size = 160 }) {
           : f.geometry.coordinates; // MultiLineString
 
       for (const ring of coords) {
-        // Quick bbox check on the line segment
         let minX = Infinity, maxX = -Infinity;
         let minY = Infinity, maxY = -Infinity;
         for (const [lon, lat] of ring) {
@@ -37,13 +36,11 @@ export function NetworkOverlay({ tile, networkData, size = 160 }) {
           if (lat > maxY) maxY = lat;
         }
 
-        // Skip if completely outside tile
         if (maxX < west || minX > east || maxY < south || minY > north) continue;
 
-        // Project to pixel coords
         const pts = ring.map(([lon, lat]) => {
           const px = ((lon - west) / geoW) * size;
-          const py = ((north - lat) / geoH) * size; // Y flipped
+          const py = ((north - lat) / geoH) * size;
           return `${px.toFixed(1)},${py.toFixed(1)}`;
         });
 
@@ -60,8 +57,15 @@ export function NetworkOverlay({ tile, networkData, size = 160 }) {
     <svg
       className="networkOverlay"
       viewBox={`0 0 ${size} ${size}`}
-      width={size}
-      height={size}
+      width={fill ? undefined : size}
+      height={fill ? undefined : size}
+      preserveAspectRatio="none"
+      style={fill ? {
+        position: "absolute",
+        top: 0, left: 0,
+        width: "100%", height: "100%",
+        pointerEvents: "none",
+      } : undefined}
     >
       {paths.map((d, i) => (
         <polyline
