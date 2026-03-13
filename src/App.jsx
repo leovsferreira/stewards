@@ -172,7 +172,13 @@ export default function App() {
                 .sort(([a], [b]) => a - b)
             : [];
 
-          const displayTiles  = focusTile ? [] : tiles;
+          const displayTiles = focusTile ? [] :
+            viewLevel === 'meso' && suggestions
+              ? tiles.filter((t) => {
+                  const s = suggestions.get(t.id);
+                  return s && [...s.keys()].some((n) => n > 0);
+                })
+              : tiles;
           const showSuggestions = viewLevel === "meso";
           const thumbSize     = viewLevel === "macro" ? 220 : 160;
 
