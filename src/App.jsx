@@ -107,7 +107,7 @@ function MicroCard({ tile, networkData, features, size }) {
           >
             {polyPaths.map((d, i) => (
               <path key={i} d={d}
-                fill="rgba(59,130,246,0.22)" stroke="#3b82f6"
+                fill="rgba(34,197,94,0.22)" stroke="#22c55e"
                 strokeWidth="1.5" strokeLinejoin="round" fillRule="evenodd" />
             ))}
           </svg>

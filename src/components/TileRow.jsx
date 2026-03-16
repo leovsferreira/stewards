@@ -107,7 +107,13 @@ export function TileRow({
                       {networkData && (
                         <NetworkOverlay tile={tile} networkData={networkData} size={thumbSize} />
                       )}
-                      <SuggestionOverlay tile={tile} features={features} size={thumbSize} />
+                      <SuggestionOverlay
+                        tile={tile}
+                        features={features}
+                        size={thumbSize}
+                        fillColor="rgba(34, 197, 94, 0.22)"
+                        strokeColor="#22c55e"
+                      />
                     </div>
                   </div>
                 ))
