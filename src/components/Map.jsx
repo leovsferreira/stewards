@@ -3,7 +3,9 @@ import { useMap } from "../hooks/useMap";
 import { useHeatmap } from "../hooks/useHeatmap";
 import { useNetworkEditor } from "../hooks/useNetworkEditor";
 import { useNetworkData } from "../hooks/useNetworkData";
+import { useStreetView } from "../hooks/useStreetView";
 import { NetworkEditorMenu } from "./NetworkEditorMenu";
+import { StreetViewPanel } from "./StreetViewPanel";
 
 function formatValue(v) {
   if (v === undefined || v === null) return "—";
@@ -22,6 +24,8 @@ export function MapView({ meta2x2, sortKey, filterIds = null, children }) {
   const { contextMenu, setContextMenu, splitEdge, deleteNode, saveNetwork, dirty, saving } =
     useNetworkEditor(mapRef, networkData);
 
+  const { panel: svPanel, closePanel: closeSV, onPanoChange } = useStreetView(mapRef, mapZoom);
+
   const handleSave = async () => {
     await saveNetwork();
     reloadNetwork();
@@ -33,7 +37,6 @@ export function MapView({ meta2x2, sortKey, filterIds = null, children }) {
       <div className="leftPane" style={{ position: "relative" }}>
         <div ref={mapContainerRef} className="map" />
 
-        {/* Network editor context menu */}
         <NetworkEditorMenu
           contextMenu={contextMenu}
           setContextMenu={setContextMenu}
@@ -41,7 +44,6 @@ export function MapView({ meta2x2, sortKey, filterIds = null, children }) {
           deleteNode={deleteNode}
         />
 
-        {/* Save network button */}
         {dirty && (
           <button
             className="saveNetworkBtn"
@@ -52,7 +54,6 @@ export function MapView({ meta2x2, sortKey, filterIds = null, children }) {
           </button>
         )}
 
-        {/* Heatmap toggle */}
         {mapZoom < 16 && (
           <div className="mapOverlayControl">
             <label className="toggleLabel">
@@ -67,7 +68,6 @@ export function MapView({ meta2x2, sortKey, filterIds = null, children }) {
           </div>
         )}
 
-        {/* Colour scale legend */}
         {heatmapOn && mapZoom < 16 && (
           <div className="mapLegend">
             <div className="legendTitle">{sortKey}</div>
@@ -78,6 +78,13 @@ export function MapView({ meta2x2, sortKey, filterIds = null, children }) {
             </div>
           </div>
         )}
+
+        {/* ── Street view panel ─────────────────────────────────────── */}
+        <StreetViewPanel
+          panel={svPanel}
+          onClose={closeSV}
+          onPanoChange={onPanoChange}
+        />
       </div>
 
       {/* ── Right pane (render prop) ────────────────────────────────── */}

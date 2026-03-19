@@ -698,3 +698,106 @@ html, body, #root {
   color: #555;
   min-width: 28px;
 }
+
+/* ── Floating panel ─────────────────────────────────────────────────────────  */
+
+.svPanel {
+  position: absolute;
+  bottom: 24px;
+  left: 16px;
+  z-index: 20;
+
+  width: 380px;
+  height: 280px;
+
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  animation: svFadeIn 0.18s ease;
+}
+
+@keyframes svFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────  */
+
+.svHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.svTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+  letter-spacing: 0.02em;
+}
+
+.svClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #999;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.12s;
+}
+
+.svClose:hover { color: #333; }
+
+/* ── Body ───────────────────────────────────────────────────────────────────  */
+
+.svBody {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.svViewer {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Loading / error states ─────────────────────────────────────────────────  */
+
+.svMessage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #888;
+}
+
+.svError { color: #c0392b; }
+
+.svSpinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e0e0e0;
+  border-top-color: #4a90d9;
+  border-radius: 50%;
+  animation: svSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes svSpin {
+  to { transform: rotate(360deg); }
+}
