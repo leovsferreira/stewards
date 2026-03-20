@@ -29,7 +29,7 @@ SCRIPT_PATH  = Path(os.environ["SCRIPT_PATH"]) / "train_from_suggestions.py"
 TILES_DIR    = Path(os.environ["TILES_DIR"])
 T2N_DIR      = Path(os.environ["T2N_DIR"])
 CONF_DIR     = Path(os.environ["CONF_DIR"])
-MODEL_OUTPUT = Path(os.environ["TRANED_MODEL_OUTPUT"]) / "suggestion_model.pt"
+MODEL_OUTPUT = Path(os.environ["TRAINED_MODEL_OUTPUT"]) / "suggestion_model.pt"
 
 # ── In-memory job store ────────────────────────────────────────────────────────
 # Each job: { status, message, epoch, total_epochs }

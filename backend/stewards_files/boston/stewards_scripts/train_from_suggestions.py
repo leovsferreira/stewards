@@ -91,7 +91,7 @@ def main():
                         help="T2N rasterized polygon masks directory")
     parser.add_argument("--conf_dir",      default=os.getenv("CONF_DIR"),
                         help="T2N confidence masks directory")
-    parser.add_argument("--model_output",  default=os.getenv("TRANED_MODEL_OUTPUT", "./outputs/suggestion_model.pt"),
+    parser.add_argument("--model_output",  default=os.getenv("TRAINED_MODEL_OUTPUT", "./outputs/suggestion_model.pt"),
                         help="Output model .pt path")
     parser.add_argument("--epochs",        type=int, default=200,
                         help="Training epochs (default: 200)")
