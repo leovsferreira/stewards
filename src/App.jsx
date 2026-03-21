@@ -328,11 +328,11 @@ export default function App() {
                 </div>
                 <div className="controls">
                   <div className="count">
-                    {viewLevel === "micro"
-                      ? `1 of ${tiles.length} tiles`
-                      : macroFilterIds !== null && viewLevel === "macro"
+                    {viewLevel !== "micro" && (
+                    macroFilterIds !== null && viewLevel === "macro"
                       ? `${tiles.length} of ${meta8x8?.length ?? "?"} tiles`
-                      : `${tiles.length} tiles`}
+                      : `${tiles.length} tiles`
+                  )}
                   </div>
 
                   {/* Train button */}
