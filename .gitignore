@@ -30,3 +30,4 @@ backend/stewards_files/boston/masks_confidence
 backend/stewards_files/boston/masks_groundtruth_polygons
 backend/stewards_files/boston/masks_tile2net_polygons
 backend/stewards_files/boston/outputs
+backend/outputs/polygon_network_output
