@@ -258,6 +258,7 @@ export default function App() {
         filterIds={macroFilterIds}
         brushActive={tileSelector.brushActive}
         selectedTiles={tileSelector.selectedTiles}
+        previewTiles={tileSelector.previewTiles}
       >
         {({ bounds, mapZoom, flyToTile, fitToTile, networkData, mapRef }) => {
           const { tiles, viewportTileIds, activeMeta, activeMetaById, viewLevel } = useTiles({
@@ -291,6 +292,7 @@ export default function App() {
             geojson:          tileSelector.geojson,
             toggleTile:       tileSelector.toggleTile,
             addTilesInBounds: tileSelector.addTilesInBounds,
+            setPreviewTiles:  tileSelector.setPreviewTiles,
             dragStart:        tileSelector.dragStart,
             isDragging:       tileSelector.isDragging,
             enabled:          viewLevel !== "macro",
@@ -350,12 +352,11 @@ export default function App() {
                 }}>
                   <BrushControls
                     brushActive={tileSelector.brushActive}
-                    toggleBrush={tileSelector.toggleBrush}
                     selectedCount={tileSelector.selectedTiles.size}
                     clearAll={tileSelector.clearAll}
                     runModel={tileSelector.runModel}
-                    isRunning={tileSelector.isRunning}
-                    runStatus={tileSelector.runStatus}
+                    inferencePhase={tileSelector.inferencePhase}       // ✓
+                    dismissInference={tileSelector.dismissInference}   // ✓
                   />
                 </div>
               )}

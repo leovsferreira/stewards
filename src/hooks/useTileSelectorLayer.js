@@ -23,7 +23,7 @@ export function useTileSelectorLayer(mapRef, {
     const map = mapRef.current;
     if (!map || !enabled) return;
 
-    let mounted = true; // guard: was setup actually run?
+    let mounted = true;
 
     const setup = () => {
       if (!mounted) return;
@@ -62,15 +62,17 @@ export function useTileSelectorLayer(mapRef, {
     } catch { /* source not ready yet */ }
   }, [mapRef, enabled, geojson]);
 
-  // ── Effect 3: disable / re-enable drag pan + cursor ───────────────────────
+  // ── Effect 3: disable / re-enable drag pan, box zoom + cursor ─────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !enabled) return;
     if (brushActive) {
       map.dragPan.disable();
+      map.boxZoom.disable(); // prevent MapLibre's built-in Shift+drag box zoom
       map.getCanvas().style.cursor = "crosshair";
     } else {
       map.dragPan.enable();
+      map.boxZoom.enable();
       map.getCanvas().style.cursor = "";
       setPreviewTiles(new Set());
       if (rubberRef.current) {
@@ -82,6 +84,7 @@ export function useTileSelectorLayer(mapRef, {
       const m = mapRef.current;
       if (!m) return;
       m.dragPan.enable();
+      m.boxZoom.enable();
       m.getCanvas().style.cursor = "";
     };
   }, [mapRef, enabled, brushActive, setPreviewTiles]);
@@ -94,6 +97,9 @@ export function useTileSelectorLayer(mapRef, {
     const container = map.getContainer();
 
     const onMouseDown = (e) => {
+      // Only initiate brush drag when Shift is held
+      if (!e.originalEvent?.shiftKey) return;
+
       dragStart.current  = { lngLat: e.lngLat, point: e.point };
       isDragging.current = false;
 
@@ -148,6 +154,8 @@ export function useTileSelectorLayer(mapRef, {
         rubberRef.current = null;
       }
       setPreviewTiles(new Set());
+
+      if (!dragStart.current) return; // mousedown was skipped (no shiftKey)
 
       if (!isDragging.current) {
         const { x, y } = lonLatToTile(e.lngLat.lng, e.lngLat.lat, 18);

@@ -1,18 +1,18 @@
 // BrushControls — floats over the map at meso/micro zoom.
-// Rendered inside a position:absolute wrapper in App.jsx, which sits
-// within .leftPane (position:relative) so it overlays the map canvas.
+// Activation is now via the Shift key (hold to brush, release to pan normally).
+// The toggle button has been removed; this component only shows:
+//   • A "Hold ⇧" hint when nothing is selected and brush is idle
+//   • A subtle "Selecting…" pill when Shift is held
+//   • Clear and Run-model buttons whenever tiles are selected
 
 export function BrushControls({
   brushActive,
-  toggleBrush,
   selectedCount,
   clearAll,
   runModel,
   inferencePhase,
   dismissInference,
 }) {
-  const isRunning = inferencePhase === "running";
-
   return (
     <div style={{
       display:        "flex",
@@ -22,31 +22,48 @@ export function BrushControls({
       pointerEvents:  "none",   // wrapper transparent; buttons below opt in
     }}>
 
-      {/* ── Brush toggle ── */}
-      <button
-        onClick={toggleBrush}
-        title={brushActive ? "Deactivate brush" : "Select tiles"}
-        style={{
-          pointerEvents: "all",
-          width:         34,
-          height:        34,
-          borderRadius:  6,
-          border:        brushActive ? "1.5px solid #4a90d9" : "1px solid #ddd",
-          background:    brushActive ? "#eaf3fc" : "#fff",
-          color:         brushActive ? "#4a90d9" : "#666",
-          cursor:        "pointer",
+      {/* ── Active indicator — only while Shift is held ── */}
+      {brushActive && (
+        <div style={{
+          pointerEvents: "none",
           display:       "flex",
           alignItems:    "center",
-          justifyContent:"center",
-          boxShadow:     "0 1px 3px rgba(0,0,0,0.1)",
-          transition:    "border-color 0.12s, background 0.12s, color 0.12s",
-        }}
-      >
-        <GridIcon size={16} />
-      </button>
+          gap:           5,
+          fontSize:      11,
+          color:         "#4a90d9",
+          background:    "#eaf3fc",
+          border:        "1px solid #c2daf5",
+          borderRadius:  6,
+          padding:       "5px 9px",
+          boxShadow:     "0 1px 3px rgba(0,0,0,0.08)",
+          whiteSpace:    "nowrap",
+          userSelect:    "none",
+        }}>
+          <CrosshairIcon size={12} />
+          Selecting…
+        </div>
+      )}
 
-      {/* ── Clear all — only when brush active and tiles selected ── */}
-      {brushActive && selectedCount > 0 && (
+      {/* ── "Hold ⇧" hint — only when nothing is selected and brush is idle ── */}
+      {!brushActive && selectedCount === 0 && inferencePhase === "idle" && (
+        <div style={{
+          pointerEvents: "none",
+          fontSize:      11,
+          color:         "#aaa",
+          background:    "#fff",
+          border:        "1px solid #e8e8e8",
+          borderRadius:  6,
+          padding:       "5px 9px",
+          boxShadow:     "0 1px 3px rgba(0,0,0,0.06)",
+          whiteSpace:    "nowrap",
+          userSelect:    "none",
+        }}>
+          Hold ⇧ to select tiles
+        </div>
+      )}
+
+      {/* ── Clear all — whenever tiles are selected ── */}
+      {selectedCount > 0 && (
         <button
           onClick={clearAll}
           style={{
@@ -66,7 +83,7 @@ export function BrushControls({
         </button>
       )}
 
-      {/* ── Run model — visible whenever tiles are selected ── */}
+      {/* ── Run model — visible whenever tiles are selected and idle ── */}
       {selectedCount > 0 && inferencePhase === "idle" && (
         <button
           onClick={runModel}
@@ -156,14 +173,15 @@ export function BrushControls({
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
-function GridIcon({ size }) {
+function CrosshairIcon({ size }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <rect x="1" y="1" width="6" height="6" rx="1" />
-      <rect x="9" y="1" width="6" height="6" rx="1" />
-      <rect x="1" y="9" width="6" height="6" rx="1" />
-      <rect x="9" y="9" width="6" height="6" rx="1" />
+      stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <circle cx="8" cy="8" r="3" />
+      <line x1="8" y1="1" x2="8" y2="4" />
+      <line x1="8" y1="12" x2="8" y2="15" />
+      <line x1="1" y1="8" x2="4" y2="8" />
+      <line x1="12" y1="8" x2="15" y2="8" />
     </svg>
   );
 }

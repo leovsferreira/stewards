@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { lonLatToTile, tileToLngLatBounds } from "../utils/tileUtils";
 
 function buildGeoJSON(tileIds) {
@@ -31,7 +31,26 @@ export function useTileSelector() {
   const dragStart  = useRef(null); // { lngLat, point }
   const isDragging = useRef(false);
 
-  const toggleBrush = useCallback(() => setBrushActive((v) => !v), []);
+  // ── Drive brushActive from Shift key ──────────────────────────────────────
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Shift" && !e.repeat) setBrushActive(true);
+    };
+    const onKeyUp = (e) => {
+      if (e.key === "Shift") setBrushActive(false);
+    };
+    // Safety: release if window loses focus while Shift is held
+    const onBlur = () => setBrushActive(false);
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup",   onKeyUp);
+    window.addEventListener("blur",    onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup",   onKeyUp);
+      window.removeEventListener("blur",    onBlur);
+    };
+  }, []);
 
   const toggleTile = useCallback((tileId) => {
     setSelectedTiles((prev) => {
@@ -86,7 +105,7 @@ export function useTileSelector() {
   const geojson = buildGeoJSON(selectedTiles);
 
   return {
-    brushActive, toggleBrush,
+    brushActive,
     selectedTiles, toggleTile, addTilesInBounds, clearAll,
     previewTiles, setPreviewTiles,
     dragStart, isDragging,

@@ -22,17 +22,19 @@ function formatValue(v) {
 
 function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive }) {
   const [positions, setPositions] = useState([]);
-
+ 
   useEffect(() => {
     const map = mapRef.current;
-    // Combine selected + preview into one projection pass
-    const allTiles = new Set([...selectedTiles, ...previewTiles]);
-
-    if (!map || !brushActive || allTiles.size === 0) {
+    // During an active brush show both sets; otherwise just the committed selection.
+    const allTiles = brushActive
+      ? new Set([...selectedTiles, ...previewTiles])
+      : selectedTiles;
+ 
+    if (!map || allTiles.size === 0) {
       setPositions([]);
       return;
     }
-
+ 
     const reproject = () => {
       const pts = [];
       for (const tid of allTiles) {
@@ -48,7 +50,7 @@ function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive 
       }
       setPositions(pts);
     };
-
+ 
     reproject();
     map.on("move", reproject);
     map.on("zoom", reproject);
@@ -57,9 +59,9 @@ function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive 
       map.off("zoom", reproject);
     };
   }, [mapRef, selectedTiles, previewTiles, brushActive]);
-
-  if (!brushActive || positions.length === 0) return null;
-
+ 
+  if (positions.length === 0) return null;
+ 
   return (
     <>
       {positions.map(({ tid, px, py, isPreview }) => (
