@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import maplibregl from "maplibre-gl";
+import { isDrawingRef } from "./drawingState";
 
 const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 const MICRO_ZOOM = 18.5;
@@ -35,18 +36,18 @@ function createMarkerElements(heading = 0) {
 
 // brushActive is passed as a plain boolean; we track it via a ref so the
 // click handler never needs to be re-registered when it changes.
+
 export function useStreetView(mapRef, mapZoom, brushActive) {
   const [panel, setPanel] = useState({
     open: false, location: null, heading: 0, loading: false, error: null,
   });
 
   const zoomRef          = useRef(mapZoom);
-  const brushRef         = useRef(brushActive);  // ← gate for click handler
+  const brushRef         = useRef(brushActive);
   const markerRef        = useRef(null);
   const innerElRef       = useRef(null);
   const accumulatedAngle = useRef(0);
 
-  // Keep refs in sync with latest prop values each render
   zoomRef.current  = mapZoom;
   brushRef.current = brushActive;
 
@@ -80,8 +81,8 @@ export function useStreetView(mapRef, mapZoom, brushActive) {
     if (!map) return;
 
     const handleClick = async (e) => {
-      // Skip if brush is active or we're not at micro zoom
-      if (brushRef.current) return;
+      if (brushRef.current)    return;
+      if (isDrawingRef.current) return;
       if (zoomRef.current < MICRO_ZOOM) return;
 
       const { lng, lat } = e.lngLat;
@@ -128,7 +129,7 @@ export function useStreetView(mapRef, mapZoom, brushActive) {
       map.off("click", handleClick);
       removeMarker();
     };
-  }, [mapRef, removeMarker]); // ← no brushActive dep — ref handles it without re-registering
+  }, [mapRef, removeMarker]);
 
   return { panel, closePanel, onPanoChange };
 }

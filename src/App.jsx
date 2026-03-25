@@ -7,6 +7,8 @@ import { useTileBorders } from "./hooks/useTileBorders";
 import { useSuggestions } from "./hooks/useSuggestions";
 import { useSuggestionLayer } from "./hooks/useSuggestionLayer";
 import { useSelectedSuggestionsLayer } from "./hooks/useSelectedSuggestionsLayer";
+import { useSuggestionEditor } from "./hooks/useSuggestionEditor";
+import { useDrawPolygon } from "./hooks/useDrawPolygon";
 import { useTileSelector } from "./hooks/useTileSelector";
 import { useTileSelectorLayer } from "./hooks/useTileSelectorLayer";
 import { TileRow } from "./components/TileRow";
@@ -146,22 +148,37 @@ export default function App() {
   const { validMeta8x8, validating } = useValidMeta(meta8x8);
   const { suggestions, reload: reloadSuggestions } = useSuggestions();
 
-  // ── Suggestion selection state ───────────────────────────────────────────────
-  const [selectedKeys, setSelectedKeys] = useState(new Set());
+  // ── Suggestion selection + editing state ─────────────────────────────────────
+  const [selectedKeys,      setSelectedKeys]      = useState(new Set());
+  const [editedSuggestions, setEditedSuggestions] = useState(new Map());
+  const [isDrawing,         setIsDrawing]         = useState(false);
 
+  // Resolve a single key → Feature, preferring edited version over base
+  const resolveFeature = useCallback((key) => {
+    if (editedSuggestions.has(key)) return editedSuggestions.get(key);
+    const [tileId, nStr] = key.split(":");
+    return suggestions?.get(tileId)?.get(Number(nStr))?.[0] ?? null;
+  }, [editedSuggestions, suggestions]);
+
+  // Flat array of resolved features — used for training and the map fill layer
   const selectedFeatures = useMemo(() => {
-    if (selectedKeys.size === 0 || !suggestions) return [];
-    const features = [];
+    if (selectedKeys.size === 0) return [];
+    return [...selectedKeys].flatMap((key) => {
+      const f = resolveFeature(key);
+      return f ? [f] : [];
+    });
+  }, [selectedKeys, resolveFeature]);
+
+  // Map<key, Feature> for all selected suggestions — passed to the editor hook
+  const editingFeaturesMap = useMemo(() => {
+    if (selectedKeys.size === 0) return new Map();
+    const m = new Map();
     for (const key of selectedKeys) {
-      const [tileId, nStr] = key.split(":");
-      const n = Number(nStr);
-      const tileSugg = suggestions.get(tileId);
-      if (!tileSugg) continue;
-      const feats = tileSugg.get(n);
-      if (feats) features.push(...feats);
+      const f = resolveFeature(key);
+      if (f) m.set(key, f);
     }
-    return features;
-  }, [selectedKeys, suggestions]);
+    return m;
+  }, [selectedKeys, resolveFeature]);
 
   const reloadNetworkRef = useRef(null);
 
@@ -170,20 +187,17 @@ export default function App() {
     reloadSuggestions();
   }, [reloadSuggestions]);
 
-  // ── Tile selector (brush) — state lives here, layer wired inside render prop ──
+  // ── Tile selector (brush) ─────────────────────────────────────────────────────
   const tileSelector = useTileSelector({ onDone: handleInferenceDone });
 
   // ── Training state ───────────────────────────────────────────────────────────
-  // phase: "idle" | "confirming" | "training" | "done" | "error"
   const [trainingPhase,    setTrainingPhase]    = useState("idle");
   const [trainingJobId,    setTrainingJobId]    = useState(null);
   const [trainingMessage,  setTrainingMessage]  = useState("");
   const [trainingProgress, setTrainingProgress] = useState({ epoch: 0, total: 200 });
 
-  const handleTrainClick = useCallback(() => setTrainingPhase("confirming"), []);
-
-  const handleTrainCancel = useCallback(() => setTrainingPhase("idle"), []);
-
+  const handleTrainClick   = useCallback(() => setTrainingPhase("confirming"), []);
+  const handleTrainCancel  = useCallback(() => setTrainingPhase("idle"), []);
   const handleTrainDismiss = useCallback(() => {
     setTrainingPhase("idle");
     setTrainingJobId(null);
@@ -205,6 +219,7 @@ export default function App() {
       const { job_id } = await res.json();
       setTrainingJobId(job_id);
       setSelectedKeys(new Set());
+      setEditedSuggestions(new Map());
     } catch (err) {
       setTrainingPhase("error");
       setTrainingMessage(err.message);
@@ -259,6 +274,9 @@ export default function App() {
         </div>
       )}
 
+      {/* isDrawing + onToggleDraw passed to MapView so the button (rendered
+          inside leftPane in Map.jsx) can reflect and toggle drawing state.
+          Map.jsx determines visibility itself via mapZoom >= MICRO_ZOOM. */}
       <MapView
         meta2x2={meta2x2}
         sortKey={sortKey}
@@ -266,10 +284,12 @@ export default function App() {
         brushActive={tileSelector.brushActive}
         selectedTiles={tileSelector.selectedTiles}
         previewTiles={tileSelector.previewTiles}
+        isDrawing={isDrawing}
+        onToggleDraw={() => setIsDrawing((v) => !v)}
       >
         {({ bounds, mapZoom, flyToTile, fitToTile, networkData, mapRef, reloadNetwork, dirty, saving, handleSave }) => {
           reloadNetworkRef.current = reloadNetwork;
-          
+
           const { tiles, viewportTileIds, activeMeta, activeMetaById, viewLevel } = useTiles({
             bounds, mapZoom,
             meta8x8: validMeta8x8,
@@ -294,8 +314,6 @@ export default function App() {
 
           useTileBorders(mapRef, tiles, focusTile);
 
-          // ── Wire tile selector MapLibre layers ──────────────────────────────
-          // Disabled at macro; the hook internally no-ops when enabled=false
           useTileSelectorLayer(mapRef, {
             brushActive:      tileSelector.brushActive,
             geojson:          tileSelector.geojson,
@@ -314,21 +332,67 @@ export default function App() {
           useSuggestionLayer(mapRef, focusTileSuggestions?.get(0) ?? null, viewLevel);
           useSelectedSuggestionsLayer(mapRef, selectedFeatures, viewLevel);
 
-          const microSuggestions = focusTileSuggestions
-            ? [...focusTileSuggestions.entries()]
-                .filter(([n]) => n > 0)
-                .sort(([a], [b]) => a - b)
-            : [];
+          // ── Editor: handles for all selected suggestions, always on in micro ─
+          const handleEditCommit = useCallback((key, updatedFeature) => {
+            setEditedSuggestions((prev) => new Map(prev).set(key, updatedFeature));
+          }, []);
+
+          useSuggestionEditor(
+            mapRef,
+            viewLevel === "micro" ? editingFeaturesMap : new Map(),
+            handleEditCommit,
+          );
+
+          // ── Draw new polygons ─────────────────────────────────────────────────
+          const handlePolygonComplete = useCallback((closedRing) => {
+            if (!focusTile) return;
+            const tileId   = focusTile.id;
+            const baseNs   = focusTileSuggestions ? [...focusTileSuggestions.keys()] : [];
+            const editedNs = [...editedSuggestions.keys()]
+              .filter((k) => k.startsWith(tileId + ":"))
+              .map((k) => Number(k.split(":")[1]));
+            const nextN    = Math.max(0, ...baseNs, ...editedNs) + 1;
+            const newKey   = `${tileId}:${nextN}`;
+            const newFeature = {
+              type: "Feature",
+              geometry: { type: "Polygon", coordinates: [closedRing] },
+              properties: { tile_id: tileId, n_suggestion: nextN },
+            };
+            setEditedSuggestions((prev) => new Map(prev).set(newKey, newFeature));
+            setSelectedKeys((prev) => new Set(prev).add(newKey));
+            setIsDrawing(false);
+          }, [focusTile, focusTileSuggestions, editedSuggestions]);
+
+          useDrawPolygon(mapRef, isDrawing, handlePolygonComplete, () => setIsDrawing(false));
+
+          // ── microSuggestions: base merged with edits/new polygons ─────────────
+          const microSuggestions = useMemo(() => {
+            if (!focusTile) return [];
+            const tileId = focusTile.id;
+            const merged = new Map();
+            if (focusTileSuggestions) {
+              for (const [n, feats] of focusTileSuggestions) {
+                if (n > 0) merged.set(n, feats);
+              }
+            }
+            for (const [key, feat] of editedSuggestions) {
+              const [kId, nStr] = key.split(":");
+              if (kId !== tileId) continue;
+              const n = Number(nStr);
+              if (n > 0) merged.set(n, [feat]);
+            }
+            return [...merged.entries()].sort(([a], [b]) => a - b);
+          }, [focusTile, focusTileSuggestions, editedSuggestions]);
 
           const displayTiles = focusTile ? [] :
-            viewLevel === 'meso' && suggestions
+            viewLevel === "meso" && suggestions
               ? tiles.filter((t) => {
                   const s = suggestions.get(t.id);
                   return s && [...s.keys()].some((n) => n > 0);
                 })
               : tiles;
           const showSuggestions = viewLevel === "meso";
-          const thumbSize = viewLevel === "macro" ? 220 : 160;
+          const thumbSize       = viewLevel === "macro" ? 220 : 160;
 
           const getClickHandler = (tile) => {
             switch (viewLevel) {
@@ -347,17 +411,16 @@ export default function App() {
             <>
               {viewLevel !== "macro" && (
                 <div style={{
-                  position: "absolute",
-                  top: 12,
-                  left: 12,
-                  zIndex: 20,
+                  position:      "absolute",
+                  top:           12,
+                  left:          12,
+                  zIndex:        20,
                   pointerEvents: "none",
-                  display: "flex",
+                  display:       "flex",
                   flexDirection: "column",
-                  alignItems: "flex-start",
-                  gap: 8,
+                  alignItems:    "flex-start",
+                  gap:           8,
                 }}>
-                  {/* Save network — sits above brush controls */}
                   {dirty && (
                     <button
                       className="saveNetworkBtn"
@@ -408,14 +471,12 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Train button */}
                     {trainingPhase === "idle" && selectedKeys.size > 0 && (
                       <button className="trainBtn" onClick={handleTrainClick}>
                         Train model · {selectedKeys.size}
                       </button>
                     )}
 
-                    {/* Training status pill */}
                     {trainingPhase !== "idle" && trainingPhase !== "confirming" && (
                       <div className={`trainingStatus ${trainingPhase}`}>
                         {trainingPhase === "training" && (

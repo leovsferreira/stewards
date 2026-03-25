@@ -8,6 +8,8 @@ import { NetworkEditorMenu } from "./NetworkEditorMenu";
 import { StreetViewPanel } from "./StreetViewPanel";
 import { tileToLngLatBounds } from "../utils/tileUtils";
 
+const MICRO_ZOOM = 18.5;
+
 function formatValue(v) {
   if (v === undefined || v === null) return "—";
   if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -16,30 +18,26 @@ function formatValue(v) {
 }
 
 // ── Tile selector checkbox overlay ───────────────────────────────────────────
-// Renders a small checkbox at the NW corner of every selected tile,
-// plus semi-transparent checkbox outlines for preview tiles (under the drag rect).
-// Uses map.project() + map "move"/"zoom" events to stay in sync with the canvas.
 
 function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive }) {
   const [positions, setPositions] = useState([]);
- 
+
   useEffect(() => {
     const map = mapRef.current;
-    // During an active brush show both sets; otherwise just the committed selection.
     const allTiles = brushActive
       ? new Set([...selectedTiles, ...previewTiles])
       : selectedTiles;
- 
+
     if (!map || allTiles.size === 0) {
       setPositions([]);
       return;
     }
- 
+
     const reproject = () => {
       const pts = [];
       for (const tid of allTiles) {
         const [x, y] = tid.split("_").map(Number);
-        const [w, , , n] = tileToLngLatBounds(x, y, 18); // NW corner
+        const [w, , , n] = tileToLngLatBounds(x, y, 18);
         const px = map.project([w, n]);
         pts.push({
           tid,
@@ -50,7 +48,7 @@ function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive 
       }
       setPositions(pts);
     };
- 
+
     reproject();
     map.on("move", reproject);
     map.on("zoom", reproject);
@@ -59,30 +57,30 @@ function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive 
       map.off("zoom", reproject);
     };
   }, [mapRef, selectedTiles, previewTiles, brushActive]);
- 
+
   if (positions.length === 0) return null;
- 
+
   return (
     <>
       {positions.map(({ tid, px, py, isPreview }) => (
         <div
           key={tid}
           style={{
-            position:        "absolute",
-            left:            px + 5,
-            top:             py + 5,
-            width:           16,
-            height:          16,
-            borderRadius:    4,
-            background:      isPreview ? "rgba(74,144,217,0.25)" : "#4a90d9",
-            border:          isPreview ? "1.5px solid #4a90d9" : "1.5px solid #fff",
-            boxShadow:       "0 1px 4px rgba(0,0,0,0.2)",
-            display:         "flex",
-            alignItems:      "center",
-            justifyContent:  "center",
-            pointerEvents:   "none",
-            zIndex:          10,
-            transition:      "background 0.1s",
+            position:       "absolute",
+            left:           px + 5,
+            top:            py + 5,
+            width:          16,
+            height:         16,
+            borderRadius:   4,
+            background:     isPreview ? "rgba(74,144,217,0.25)" : "#4a90d9",
+            border:         isPreview ? "1.5px solid #4a90d9" : "1.5px solid #fff",
+            boxShadow:      "0 1px 4px rgba(0,0,0,0.2)",
+            display:        "flex",
+            alignItems:     "center",
+            justifyContent: "center",
+            pointerEvents:  "none",
+            zIndex:         10,
+            transition:     "background 0.1s",
           }}
         >
           {!isPreview && (
@@ -105,10 +103,12 @@ function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive 
 export function MapView({
   meta2x2,
   sortKey,
-  filterIds  = null,
+  filterIds   = null,
   brushActive = false,
   selectedTiles,
   previewTiles,
+  isDrawing   = false,
+  onToggleDraw,
   children,
 }) {
   const { mapContainerRef, mapRef, bounds, mapZoom, flyToTile, fitToTile } = useMap();
@@ -127,6 +127,10 @@ export function MapView({
     await saveNetwork();
     reloadNetwork();
   };
+
+  // Map.jsx already tracks mapZoom — use it to gate the button without needing
+  // viewLevel to be passed back up from the render prop.
+  const isMicro = mapZoom >= MICRO_ZOOM;
 
   return (
     <>
@@ -170,6 +174,28 @@ export function MapView({
               <span>{formatValue(valueRange.max)}</span>
             </div>
           </div>
+        )}
+
+        {/* Draw polygon button — inside leftPane so position: absolute is
+            relative to the map container, not the page. Sits just below the
+            MapLibre NavigationControl (top-right). Only shown in micro view. */}
+        {isMicro && (
+          <button
+            className={`drawPolygonBtn${isDrawing ? " active" : ""}`}
+            onClick={onToggleDraw}
+            title={isDrawing ? "Cancel drawing (Esc)" : "Draw polygon"}
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
+              <polygon points="8,1 14,5 14,11 8,15 2,11 2,5" />
+              <circle cx="8"  cy="1"  r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="14" cy="5"  r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="14" cy="11" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="8"  cy="15" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="2"  cy="11" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="2"  cy="5"  r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
         )}
 
         <StreetViewPanel panel={svPanel} onClose={closeSV} onPanoChange={onPanoChange} />
