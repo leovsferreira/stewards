@@ -2,6 +2,12 @@
 
 Stewards is a visual analytics tool for pedestrian network mapping and repair. It combines a React/MapLibre GL frontend with a Python FastAPI backend and a local tile server.
 
+> **About the included data and model**
+>
+> The `stewards_files` package distributed with this repository contains **sample data for a single neighborhood in Boston (Dorchester) only**.
+>
+> The package also includes a **placeholder model** (untrained / minimally trained weights) so that the training and inference interactions in the UI function end-to-end.
+
 ---
 
 ## Prerequisites
@@ -35,15 +41,15 @@ stewards/
 │   └── stewards_files/
 │       ├── map_tiles/            ← Raster map tiles for the tile server
 │       └── boston/
-│           ├── tiles/            ← Satellite imagery tiles (zoom-20 PNG)
-│           ├── masks_tile2net_polygons/   ← tile2net prediction masks
-│           ├── masks_confidence/          ← Confidence score masks
-│           ├── masks_groundtruth_polygons/ ← Ground-truth polygon masks
+│           ├── tiles/            ← Sample satellite imagery tiles for Dorchester, Boston
+│           ├── masks_tile2net_polygons/   ← tile2net prediction masks (Dorchester sample)
+│           ├── masks_confidence/          ← Confidence score masks (Dorchester sample)
+│           ├── masks_groundtruth_polygons/ ← Ground-truth polygon masks (Dorchester sample)
 │           └── stewards_scripts/
 │               ├── train_from_suggestions.py
 │               ├── apply_model.py
 │               ├── helper_scripts/
-│               └── output/       ← Trained model checkpoints saved here
+│               └── output/       ← Placeholder model weights; trained checkpoints saved here
 └── vite.config.js
 ```
 
@@ -60,29 +66,42 @@ cd stewards
 
 ## Step 2 — Download and Place the Data Folder
 
-The `stewards_files` folder contains large binary data (satellite tiles, masks, map tiles) and is distributed separately from the repository.
+The `stewards_files` folder (~600 MB) contains the sample data for the Dorchester neighborhood of Boston along with a placeholder model. It is distributed as a release asset on GitHub due to file size.
 
-1. Download the `stewards_files` archive (shared separately).
-2. Place it inside `./backend/` so the path is `stewards/backend/stewards_files/`.
+**Option A — Command line** (from the project root):
 
-The folder must contain:
+```bash
+# Download
+curl -L -o backend/stewards_files.zip \
+  https://github.com/<your-org>/<repo>/releases/download/v1.0-data/stewards_files.zip
+
+# Unzip into ./backend/
+unzip backend/stewards_files.zip -d backend/
+
+# Clean up
+rm backend/stewards_files.zip
+```
+
+**Option B — Manual:** Download `stewards_files.zip` from the [Releases page](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data), unzip it, and move the resulting `stewards_files/` folder into `./backend/`.
+
+After extraction the structure should be:
 
 ```
 stewards_files/
-├── map_tiles/                    ← Used by the tile server (port 8002)
+├── map_tiles/                      ← Used by the tile server (port 8002)
 └── boston/
-    ├── tiles/
-    ├── masks_tile2net_polygons/
-    ├── masks_confidence/
-    ├── masks_groundtruth_polygons/
+    ├── tiles/                      ← Dorchester sample only
+    ├── masks_tile2net_polygons/    ← Dorchester sample only
+    ├── masks_confidence/           ← Dorchester sample only
+    ├── masks_groundtruth_polygons/ ← Dorchester sample only
     └── stewards_scripts/
         ├── train_from_suggestions.py
         ├── apply_model.py
         ├── helper_scripts/
-        └── output/
+        └── output/                 ← Placeholder model weights live here
 ```
 
-> **Note:** The `public/polygons.geojson` and `public/network.geojson` files are also distributed separately. Place them in the `public/` folder at the project root before running.
+> **Note:** The `public/polygons.geojson` and `public/network.geojson` files are included in the same release. Download them and place them in the `public/` folder at the project root.
 
 ---
 
@@ -247,13 +266,13 @@ If any port (5173, 8001, or 8002) is occupied, stop the conflicting process. If 
 
 ## Required Files Summary
 
-| File / Folder | Source | Location in Project |
-|---|---|---|
-| `backend/stewards_files/` | Distributed separately | `stewards/backend/stewards_files/` |
-| `public/polygons.geojson` | Distributed separately | `stewards/public/` |
-| `public/network.geojson` | Distributed separately | `stewards/public/` |
-| `.env` | Created manually per machine | `stewards/.env` |
-| `VITE_GOOGLE_MAPS_KEY` | Google Cloud Console | Inside `.env` |
+| File / Folder | Source | Location in Project | Notes |
+|---|---|---|---|
+| `backend/stewards_files/` | [GitHub Releases](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data) | `stewards/backend/stewards_files/` | Dorchester sample data + placeholder model |
+| `public/polygons.geojson` | [GitHub Releases](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data) | `stewards/public/` | Dorchester sample |
+| `public/network.geojson` | [GitHub Releases](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data) | `stewards/public/` | Dorchester sample |
+| `.env` | Created manually per machine | `stewards/.env` | |
+| `VITE_GOOGLE_MAPS_KEY` | Google Cloud Console | Inside `.env` | |
 
 ---
 
