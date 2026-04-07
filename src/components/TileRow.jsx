@@ -2,21 +2,6 @@ import { useState } from "react";
 import { NetworkOverlay } from "./NetworkOverlay";
 import { SuggestionOverlay } from "./SuggestionOverlay";
 
-/**
- * TileRow displays a tile thumbnail with optional network overlay + suggestion cards.
- *
- * Props:
- *   tile                – { z, x, y, id }
- *   meta                – metadata record for the tile (or undefined)
- *   sortKey             – active metric key
- *   onClick             – click handler for the thumbnail
- *   showSuggestions     – whether to render the suggestion cards (meso view)
- *   networkData         – parsed GeoJSON FeatureCollection (or null)
- *   thumbSize           – thumbnail pixel size (default 160)
- *   tileSuggestions     – Map<nSuggestion, Feature[]> for this tile (or null)
- *   selectedKeys        – Set<string> of "tileId:nSuggestion" keys currently selected
- *   onToggleSuggestion  – (tileId, nSuggestion) => void
- */
 export function TileRow({
   tile,
   meta,
@@ -42,19 +27,16 @@ export function TileRow({
       ? Number(val).toFixed(2)
       : String(Number(val));
 
-  // Build suggestion entries sorted by n_suggestion (exclude 0 = originals)
   const suggestionEntries = tileSuggestions
     ? [...tileSuggestions.entries()]
         .filter(([n]) => n > 0)
         .sort(([a], [b]) => a - b)
     : [];
 
-  // Original (n_suggestion=0) polygons for the main thumbnail
   const originalFeatures = tileSuggestions?.get(0) ?? null;
 
   return (
     <div className="row">
-      {/* ── Main tile thumbnail ── */}
       <div
         className={`thumbWrap ${onClick ? "tileClickable" : ""}`}
         onClick={onClick}
@@ -80,7 +62,6 @@ export function TileRow({
         </div>
       </div>
 
-      {/* ── Suggestion cards (meso horizontal scroller) ── */}
       {showSuggestions && (
         <div className="suggestionsWrap">
           <div className="suggestionsScroller">
@@ -123,7 +104,6 @@ export function TileRow({
                           strokeColor="#22c55e"
                         />
 
-                        {/* Selection checkbox */}
                         <span className={`suggestionCheckbox ${isSelected ? "checked" : ""}`}>
                           {isSelected && (
                             <svg viewBox="0 0 12 12" width="10" height="10">

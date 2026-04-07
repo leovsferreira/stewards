@@ -1,4 +1,3 @@
-/* Convert lon/lat -> XYZ tile coords (Web Mercator) */
 export function lonLatToTile(lon, lat, z) {
   const n = 2 ** z;
   const x = Math.floor(((lon + 180) / 360) * n);
@@ -11,7 +10,6 @@ export function lonLatToTile(lon, lat, z) {
   return { x, y, z };
 }
 
-/* Convert XYZ tile -> lon/lat bounds [W, S, E, N] */
 export function tileToLngLatBounds(x, y, z) {
   const n = 2 ** z;
 
@@ -27,7 +25,6 @@ export function tileToLngLatBounds(x, y, z) {
   return [west, south, east, north];
 }
 
-/* Compute all tiles intersecting bounds at zoom z */
 export function tilesForBounds(bounds, z) {
   const nw = lonLatToTile(bounds.west, bounds.north, z);
   const se = lonLatToTile(bounds.east, bounds.south, z);
@@ -44,12 +41,10 @@ export function tilesForBounds(bounds, z) {
     }
   }
 
-  // Stable order: top-to-bottom, left-to-right
   tiles.sort((a, b) => a.y - b.y || a.x - b.x);
   return tiles;
 }
 
-// Get [west, south, east, north] lon/lat for a zoom-18 tile
 export function tile18Bounds(x, y) {
   const n    = 2 ** 18;
   const west = (x / n) * 360 - 180;
@@ -60,9 +55,6 @@ export function tile18Bounds(x, y) {
   return [west, south, east, north];
 }
  
-/**
- * Given a lng/lat point, return the zoom-18 tile ID string "x_y".
- */
 export function lngLatToTile18(lng, lat) {
   const n      = 2 ** 18;
   const x      = Math.floor(((lng + 180) / 360) * n);
@@ -73,10 +65,6 @@ export function lngLatToTile18(lng, lat) {
   return `${x}_${y}`;
 }
  
-/**
- * Build a GeoJSON FeatureCollection of tile bounding-box polygons
- * for a Set of zoom-18 tile ID strings.
- */
 export function selectedTilesToGeoJSON(tileIds) {
   const features = [...tileIds].map((tid) => {
     const [x, y]       = tid.split("_").map(Number);

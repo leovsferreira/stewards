@@ -86,10 +86,6 @@ export function useMap() {
     };
   }, []);
 
-  /**
-   * Fly to an 8×8 tile (macro → meso transition).
-   * Caps zoom at 16.99 so we land in meso level.
-   */
   const flyToTile = (tile) => {
     const map = mapRef.current;
     if (!map) return;
@@ -102,10 +98,6 @@ export function useMap() {
     });
   };
 
-  /**
-   * Fit the map exactly to a 2×2 tile (meso → micro / micro → micro).
-   * No maxZoom cap — lets the map zoom in fully to the tile extent.
-   */
   const fitToTile = (tile) => {
     const map = mapRef.current;
     if (!map) return;

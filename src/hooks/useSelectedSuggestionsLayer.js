@@ -4,20 +4,11 @@ const SOURCE_ID = "selected-suggestions-source";
 const FILL_ID   = "selected-suggestions-fill";
 const LINE_ID   = "selected-suggestions-line";
 
-/**
- * Manages a MapLibre fill+line layer (green) for user-selected suggestion
- * polygons.  Visible at meso and micro zoom; hidden at macro.
- *
- * @param {React.RefObject} mapRef
- * @param {GeoJSON.Feature[]} selectedFeatures – flat array of selected suggestion features
- * @param {string} viewLevel – "macro" | "meso" | "micro"
- */
 export function useSelectedSuggestionsLayer(mapRef, selectedFeatures, viewLevel) {
   const addedRef  = useRef(false);
   const latestRef = useRef({ selectedFeatures, viewLevel });
   latestRef.current = { selectedFeatures, viewLevel };
 
-  // ── Effect 1: one-time setup ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -72,7 +63,6 @@ export function useSelectedSuggestionsLayer(mapRef, selectedFeatures, viewLevel)
     };
   }, [mapRef]);
 
-  // ── Effect 2: sync data whenever features or view level change ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !addedRef.current) return;

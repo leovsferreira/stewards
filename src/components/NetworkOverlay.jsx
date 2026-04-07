@@ -1,15 +1,6 @@
 import { useMemo } from "react";
 import { tileToLngLatBounds } from "../utils/tileUtils";
 
-/**
- * Renders network line segments as an SVG overlay on a tile thumbnail.
- *
- * Props:
- *   tile         – { z, x, y, id }
- *   networkData  – parsed GeoJSON FeatureCollection
- *   size         – coordinate space for path math (default 160)
- *   fill         – if true, SVG stretches to 100%×100% of its container
- */
 export function NetworkOverlay({ tile, networkData, size = 160, fill = false }) {
   const paths = useMemo(() => {
     if (!networkData?.features) return [];

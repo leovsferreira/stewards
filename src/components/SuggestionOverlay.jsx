@@ -1,10 +1,6 @@
 import { useMemo } from "react";
 import { tileToLngLatBounds } from "../utils/tileUtils";
 
-/**
- * Projects a single coordinate ring to an SVG path segment string.
- * Returns a closed "M x,y L x,y ... Z" segment.
- */
 function ringToPathSegment(ring, west, north, geoW, geoH, size) {
   const pts = ring.map(([lon, lat]) => {
     const px = ((lon - west) / geoW) * size;
@@ -14,18 +10,6 @@ function ringToPathSegment(ring, west, north, geoW, geoH, size) {
   return `M ${pts.join(" L ")} Z`;
 }
 
-/**
- * Renders GeoJSON polygon features (Polygon / MultiPolygon, including holes)
- * as an SVG overlay positioned absolutely over a tile thumbnail.
- *
- * Props:
- *   tile     – { z, x, y, id }
- *   features – GeoJSON Feature[] (Polygon | MultiPolygon)
- *   size     – coordinate space for path math (default 160)
- *   fill     – if true, SVG stretches to 100%×100% of its container
- *   fillColor   – CSS color string (default semi-transparent blue)
- *   strokeColor – CSS color string (default blue)
- */
 export function SuggestionOverlay({
   tile,
   features,
@@ -47,16 +31,12 @@ export function SuggestionOverlay({
       const { type, coordinates } = f.geometry;
 
       if (type === "Polygon") {
-        // coordinates = [outerRing, ...holeRings]
-        // All rings concatenated into one path; fillRule="evenodd" handles holes.
         const d = coordinates
           .map((ring) => ringToPathSegment(ring, west, north, geoW, geoH, size))
           .join(" ");
         result.push(d);
 
       } else if (type === "MultiPolygon") {
-        // coordinates = [polygon1, polygon2, ...]
-        // Each polygon = [outerRing, ...holeRings]
         for (const polygon of coordinates) {
           const d = polygon
             .map((ring) => ringToPathSegment(ring, west, north, geoW, geoH, size))

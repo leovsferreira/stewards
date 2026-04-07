@@ -5,18 +5,6 @@ const DRAW_SOURCE = "draw-poly-source";
 const DRAW_LINE   = "draw-poly-line";
 const DRAW_VERTS  = "draw-poly-verts";
 
-// ── Hook ─────────────────────────────────────────────────────────────────────
-
-/**
- * Activates a polygon drawing mode on the map when isDrawing is true.
- * Click to add vertices; double-click or click near the first vertex to close.
- * Press Escape to cancel.
- *
- * @param {React.RefObject} mapRef
- * @param {boolean}         isDrawing
- * @param {Function}        onComplete  (closedRing: [lng,lat][]) => void
- * @param {Function}        onCancel    () => void  – called on Escape / cancel
- */
 export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
   const ringRef      = useRef([]);
   const cursorRef    = useRef(null);
@@ -40,16 +28,14 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
     cursorRef.current = null;
 
     const h = {};
-    let clickTimer = null; // debounce for single-click vs double-click
+    let clickTimer = null; 
 
-    // ── Build GeoJSON for the temp drawing layer ────────────────────────────
 
     const buildFC = () => {
       const ring   = ringRef.current;
       const cursor = cursorRef.current;
       const features = [];
 
-      // Preview line: ring vertices + cursor position
       if (ring.length >= 1 && cursor) {
         features.push({
           type: "Feature",
@@ -57,7 +43,6 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
           properties: { kind: "preview" },
         });
       }
-      // Closing segment: last vertex → first vertex (once we have ≥ 3 points)
       if (ring.length >= 3 && cursor) {
         features.push({
           type: "Feature",
@@ -65,7 +50,6 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
           properties: { kind: "close" },
         });
       }
-      // Committed ring (solid)
       if (ring.length >= 2) {
         features.push({
           type: "Feature",
@@ -73,7 +57,6 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
           properties: { kind: "ring" },
         });
       }
-      // Vertex dots
       for (const pt of ring) {
         features.push({
           type: "Feature",
@@ -86,12 +69,10 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
 
     const sync = () => map.getSource(DRAW_SOURCE)?.setData(buildFC());
 
-    // ── Finish polygon ──────────────────────────────────────────────────────
-
     const finish = () => {
       const ring = ringRef.current;
       if (ring.length >= 3) {
-        const closed = [...ring, ring[0]]; // GeoJSON ring closure
+        const closed = [...ring, ring[0]];
         onCompleteRef.current(closed);
       }
     };
@@ -100,17 +81,14 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
       onCancelRef.current?.();
     };
 
-    // ── Event handlers ──────────────────────────────────────────────────────
 
     h.click = (e) => {
-      // Debounce: ignore if a double-click timer is about to fire
       if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; return; }
 
       clickTimer = setTimeout(() => {
         clickTimer = null;
         const ring = ringRef.current;
 
-        // Close polygon if clicking near the first vertex (within 12px)
         if (ring.length >= 3) {
           const [firstLng, firstLat] = ring[0];
           const firstPx = map.project([firstLng, firstLat]);
@@ -121,11 +99,11 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
 
         ringRef.current = [...ring, [e.lngLat.lng, e.lngLat.lat]];
         sync();
-      }, 220); // slightly longer than dblclick interval detection
+      }, 220);
     };
 
     h.dblclick = (e) => {
-      e.preventDefault(); // prevent map zoom on dblclick
+      e.preventDefault();
       if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
       finish();
     };
@@ -139,8 +117,6 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
       if (e.key === "Escape") cancel();
     };
 
-    // ── Setup ───────────────────────────────────────────────────────────────
-
     const setup = () => {
       if (!map.getSource(DRAW_SOURCE)) {
         map.addSource(DRAW_SOURCE, {
@@ -148,7 +124,6 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
           data: { type: "FeatureCollection", features: [] },
         });
 
-        // Dashed preview / close lines
         map.addLayer({
           id: DRAW_LINE, type: "line", source: DRAW_SOURCE,
           paint: {
@@ -159,7 +134,6 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
           },
         });
 
-        // Vertex dots
         map.addLayer({
           id: DRAW_VERTS, type: "circle", source: DRAW_SOURCE,
           filter: ["==", ["get", "kind"], "vertex"],
@@ -206,5 +180,5 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
       document.removeEventListener("keydown", h.keydown);
       addedRef.current = false;
     };
-  }, [mapRef, isDrawing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapRef, isDrawing]); 
 }

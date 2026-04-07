@@ -2,8 +2,6 @@ import { useEffect, useRef } from "react";
 
 const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
-// ── Load Google Maps JS API once ─────────────────────────────────────────────
-
 let gmapsPromise = null;
 
 function loadGoogleMaps() {
@@ -19,14 +17,6 @@ function loadGoogleMaps() {
   return gmapsPromise;
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
-
-/**
- * Props:
- *   panel        – { open, location: {lat,lng}, heading, loading, error }
- *   onClose      – () => void
- *   onPanoChange – ({ heading, lat, lng }) => void
- */
 export function StreetViewPanel({ panel, onClose, onPanoChange }) {
   const containerRef = useRef(null);
   const panoRef      = useRef(null);
@@ -39,7 +29,6 @@ export function StreetViewPanel({ panel, onClose, onPanoChange }) {
     loadGoogleMaps().then(() => {
       if (cancelled || !containerRef.current) return;
 
-      // Destroy previous panorama if any
       if (panoRef.current) {
         window.google.maps.event.clearInstanceListeners(panoRef.current);
         panoRef.current = null;
@@ -48,18 +37,16 @@ export function StreetViewPanel({ panel, onClose, onPanoChange }) {
       const pano = new window.google.maps.StreetViewPanorama(containerRef.current, {
         position:              { lat: panel.location.lat, lng: panel.location.lng },
         pov:                   { heading: panel.heading, pitch: 0 },
-        // ── Hide UI chrome ──────────────────────────────────────────
         addressControl:        false,
         zoomControl:           false,
         fullscreenControl:     false,
         panControl:            false,
-        linksControl:          true,   // keep navigation arrows
+        linksControl:          true,
         showRoadLabels:        false,
         motionTracking:        false,
         motionTrackingControl: false,
       });
 
-      // Mirror heading + position back to the map marker
       pano.addListener("pov_changed", () => {
         onPanoChange({
           heading: pano.getPov().heading,
@@ -86,19 +73,17 @@ export function StreetViewPanel({ panel, onClose, onPanoChange }) {
         panoRef.current = null;
       }
     };
-  }, [panel.location, panel.heading, panel.open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [panel.location, panel.heading, panel.open]);
 
   if (!panel.open) return null;
 
   return (
     <div className="svPanel">
-      {/* ── Header ── */}
       <div className="svHeader">
         <span className="svTitle">Street View</span>
         <button className="svClose" onClick={onClose} aria-label="Close">✕</button>
       </div>
 
-      {/* ── Body ── */}
       <div className="svBody">
         {panel.loading && (
           <div className="svMessage">
@@ -111,7 +96,6 @@ export function StreetViewPanel({ panel, onClose, onPanoChange }) {
           <div className="svMessage svError">{panel.error}</div>
         )}
 
-        {/* Container always in DOM once open so the ref is stable */}
         <div
           ref={containerRef}
           className="svViewer"

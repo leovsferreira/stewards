@@ -18,7 +18,6 @@ export function useTileSelectorLayer(mapRef, {
 }) {
   const rubberRef  = useRef(null);
 
-  // ── Effect 1: MapLibre source + layers for committed selected tiles ────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !enabled) return;
@@ -53,7 +52,6 @@ export function useTileSelectorLayer(mapRef, {
     };
   }, [mapRef, enabled]);
 
-  // ── Effect 2: sync committed selection into MapLibre source ───────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !enabled) return;
@@ -62,13 +60,12 @@ export function useTileSelectorLayer(mapRef, {
     } catch { /* source not ready yet */ }
   }, [mapRef, enabled, geojson]);
 
-  // ── Effect 3: disable / re-enable drag pan, box zoom + cursor ─────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !enabled) return;
     if (brushActive) {
       map.dragPan.disable();
-      map.boxZoom.disable(); // prevent MapLibre's built-in Shift+drag box zoom
+      map.boxZoom.disable();
       map.getCanvas().style.cursor = "crosshair";
     } else {
       map.dragPan.enable();
@@ -89,7 +86,6 @@ export function useTileSelectorLayer(mapRef, {
     };
   }, [mapRef, enabled, brushActive, setPreviewTiles]);
 
-  // ── Effect 4: mouse event handlers ───────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !enabled || !brushActive) return;
@@ -97,7 +93,6 @@ export function useTileSelectorLayer(mapRef, {
     const container = map.getContainer();
 
     const onMouseDown = (e) => {
-      // Only initiate brush drag when Shift is held
       if (!e.originalEvent?.shiftKey) return;
 
       dragStart.current  = { lngLat: e.lngLat, point: e.point };
@@ -130,7 +125,6 @@ export function useTileSelectorLayer(mapRef, {
       rubberRef.current.style.width  = `${Math.abs(x1 - x0)}px`;
       rubberRef.current.style.height = `${Math.abs(y1 - y0)}px`;
 
-      // Live preview tiles inside current rectangle
       const { lng: lng0, lat: lat0 } = dragStart.current.lngLat;
       const { lng: lng1, lat: lat1 } = e.lngLat;
       const west  = Math.min(lng0, lng1), east  = Math.max(lng0, lng1);
@@ -155,7 +149,7 @@ export function useTileSelectorLayer(mapRef, {
       }
       setPreviewTiles(new Set());
 
-      if (!dragStart.current) return; // mousedown was skipped (no shiftKey)
+      if (!dragStart.current) return; 
 
       if (!isDragging.current) {
         const { x, y } = lonLatToTile(e.lngLat.lng, e.lngLat.lat, 18);

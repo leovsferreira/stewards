@@ -14,15 +14,6 @@ function parseSuggestions(fc) {
   return byTile;
 }
 
-/**
- * Loads /polygons.geojson and returns a nested index:
- *   suggestions: Map<tileId, Map<nSuggestion, GeoJSON.Feature[]>>
- *
- * n_suggestion=0  → original polygons
- * n_suggestion>0  → suggestion variant
- *
- * reload() busts the cache and re-fetches — call it after inference completes.
- */
 export function useSuggestions() {
   const [suggestions, setSuggestions] = useState(cachedSuggestions);
 

@@ -5,8 +5,6 @@ const VERT_LAYER    = "sugg-edit-vertex-layer";
 const EDGE_LAYER    = "sugg-edit-edge-layer";
 const SEL_SOURCE    = "selected-suggestions-source";
 
-// ── Geometry helpers ─────────────────────────────────────────────────────────
-
 function getPolygonRing(feature) {
   if (!feature) return null;
   const { type, coordinates } = feature.geometry;
@@ -15,13 +13,6 @@ function getPolygonRing(feature) {
   return null;
 }
 
-/**
- * Build a FeatureCollection of all handles for every feature in the map.
- * Each handle carries a `featureKey` property so the drag handler knows
- * which feature it belongs to.
- *
- * @param {Map<string, GeoJSON.Feature>} featuresMap
- */
 function buildHandleFC(featuresMap) {
   const out = [];
   if (!featuresMap) return { type: "FeatureCollection", features: out };
@@ -78,26 +69,14 @@ function applyDrag(feature, drag, lngLat) {
   return { ...feature, geometry: { type, coordinates: polys } };
 }
 
-// ── Hook ─────────────────────────────────────────────────────────────────────
-
-/**
- * Always-mounted handle layers for editing suggestion polygons.
- * Renders handles for ALL features in editingFeaturesMap simultaneously.
- * Dragging any handle commits just that feature via onCommit(key, updatedFeature).
- *
- * @param {React.RefObject}           mapRef
- * @param {Map<string,GeoJSON.Feature>|null} editingFeaturesMap  key → feature
- * @param {Function}                  onCommit  (key, newFeature) => void
- */
 export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
   const addedRef       = useRef(false);
-  const dragRef        = useRef(null); // { featureKey, kind, idx, startLng, startLat, origRing }
+  const dragRef        = useRef(null);
   const featuresMapRef = useRef(editingFeaturesMap);
   const onCommitRef    = useRef(onCommit);
   featuresMapRef.current = editingFeaturesMap;
   onCommitRef.current    = onCommit;
 
-  // ── Effect 1: one-time layer setup + event binding ────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -112,7 +91,6 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
         data: buildHandleFC(featuresMapRef.current),
       });
 
-      // Edge midpoints — added first so vertices render on top
       map.addLayer({
         id: EDGE_LAYER, type: "circle", source: HANDLE_SOURCE,
         filter: ["==", ["get", "kind"], "edge"],
@@ -163,12 +141,10 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
 
         const updated = applyDrag(feature, dragRef.current, e.lngLat);
 
-        // Build a temporary map with the updated feature for live handle redraw
         const tmpMap = new Map(featuresMapRef.current);
         tmpMap.set(featureKey, updated);
         map.getSource(HANDLE_SOURCE)?.setData(buildHandleFC(tmpMap));
 
-        // Push all selected features (with the in-progress edit) to the fill layer
         map.getSource(SEL_SOURCE)?.setData({
           type: "FeatureCollection",
           features: [...tmpMap.values()],
@@ -231,14 +207,12 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
       }
       addedRef.current = false;
     };
-  }, [mapRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapRef]); 
 
-  // ── Effect 2: sync handles whenever the set of editing features changes ───
   useEffect(() => {
     if (!addedRef.current) return;
     const map = mapRef.current;
     if (!map) return;
-    // Cancel any in-flight drag if the dragged feature was removed
     if (dragRef.current && !editingFeaturesMap?.has(dragRef.current.featureKey)) {
       dragRef.current = null;
       map.dragPan.enable();

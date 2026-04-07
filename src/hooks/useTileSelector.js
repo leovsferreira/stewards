@@ -17,11 +17,6 @@ function buildGeoJSON(tileIds) {
   return { type: "FeatureCollection", features };
 }
 
-/**
- * @param {object} options
- * @param {() => void} [options.onDone] – called after inference completes successfully.
- *   Use this to reload network + polygon data in the parent.
- */
 export function useTileSelector({ onDone } = {}) {
   const [brushActive,   setBrushActive]   = useState(false);
   const [selectedTiles, setSelectedTiles] = useState(new Set());
@@ -31,15 +26,12 @@ export function useTileSelector({ onDone } = {}) {
   const [inferenceJobId,   setInferenceJobId]   = useState(null);
   const [inferenceMessage, setInferenceMessage] = useState("");
 
-  // Keep latest onDone in a ref so the polling effect never goes stale
   const onDoneRef = useRef(onDone);
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
-  // Drag refs — no re-render during mousemove
   const dragStart  = useRef(null);
   const isDragging = useRef(false);
 
-  // ── Drive brushActive from Shift key ──────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e) => { if (e.key === "Shift" && !e.repeat) setBrushActive(true); };
     const onKeyUp   = (e) => { if (e.key === "Shift") setBrushActive(false); };
@@ -54,7 +46,6 @@ export function useTileSelector({ onDone } = {}) {
     };
   }, []);
 
-  // ── Poll inference status every 2 s ───────────────────────────────────────
   useEffect(() => {
     if (inferencePhase !== "running" || !inferenceJobId) return;
 
@@ -76,10 +67,8 @@ export function useTileSelector({ onDone } = {}) {
           clearInterval(id);
           console.log("[inference] done ✓ — reloading data and clearing selection");
 
-          // Deselect all tiles immediately
           setSelectedTiles(new Set());
 
-          // Fire the reload callback (reloads network + polygons in App.jsx)
           try { onDoneRef.current?.(); } catch (err) {
             console.warn("[inference] onDone callback threw:", err);
           }

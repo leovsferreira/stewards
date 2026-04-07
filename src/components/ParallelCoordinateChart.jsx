@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 
-// ── Axis definitions ─────────────────────────────────────────────────────────
 export const PCP_AXES = [
   { key: "paved_plaza_surface_area",      label: "Paved Plaza" },
   { key: "isolated_walkway_area",         label: "Walkway" },
@@ -12,7 +11,6 @@ export const PCP_AXES = [
   { key: "n_uncertain",                   label: "Uncertain" },
 ];
 
-// ── SVG viewport constants ────────────────────────────────────────────────────
 const VW      = 900;
 const VH      = 360;
 const TOP_PAD = 32;
@@ -24,12 +22,10 @@ const N       = PCP_AXES.length;
 const STEP    = (VW - L_PAD - R_PAD) / (N - 1);
 const axX     = (i) => L_PAD + i * STEP;
 
-// ── Colors ────────────────────────────────────────────────────────────────────
 const LINE_DEFAULT   = "#b0b8c4";
 const LINE_HIGHLIGHT = "#3b82f6";
 const LINE_DIM       = "#dde3ec";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const ynToY   = (yn)          => TOP_PAD + yn * AXIS_H;
 const yToYn   = (svgY)        => Math.max(0, Math.min(1, (svgY - TOP_PAD) / AXIS_H));
 const valToYn = (min, max, v) => 1 - (v - min) / (max - min);
@@ -41,20 +37,9 @@ function fmtVal(v) {
   return v.toFixed(2);
 }
 
-/**
- * ParallelCoordinateChart
- *
- * Props:
- *   data          – array of ALL metadata objects (meta8x8) – used for scales
- *   visibleIds    – Set<tile_id> of tiles currently visible in the viewport
- *   sortKey       – currently active sort metric
- *   onSortChange  – (key: string) => void
- *   onFilterChange– (filteredIds: Set<string> | null) => void
- */
 export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChange, onFilterChange }) {
   const svgRef = useRef(null);
 
-  // ── State ──────────────────────────────────────────────────────────────────
   const [brushes, setBrushes]     = useState({});
   const [liveBrush, setLiveBrush] = useState(null);
   const liveBrushRef              = useRef(null);
@@ -63,13 +48,11 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
   const onFilterRef               = useRef(onFilterChange);
   onFilterRef.current             = onFilterChange;
 
-  // ── Restrict lines to only tiles visible in the current viewport ──────────
   const visibleData = useMemo(() => {
     if (!visibleIds || visibleIds.size === 0) return data;
     return data.filter((d) => visibleIds.has(d.tile_id));
   }, [data, visibleIds]);
 
-  // ── Per-axis scales (from ALL data for consistency across panning) ─────────
   const scales = useMemo(() => {
     const out = {};
     for (const { key } of PCP_AXES) {
@@ -81,14 +64,12 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
     return out;
   }, [data]);
 
-  // ── dispBrushes: merge committed brushes + live brush (must come first) ───
   const dispBrushes = useMemo(() => {
     const m = { ...brushes };
     if (liveBrush) m[liveBrush.axisKey] = liveBrush;
     return m;
   }, [brushes, liveBrush]);
 
-  // ── Filtered tile IDs — computed from dispBrushes for real-time updates ───
   const filteredIds = useMemo(() => {
     const active = Object.entries(dispBrushes).filter(([, b]) => !!b);
     if (active.length === 0) return null;
@@ -107,7 +88,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
     );
   }, [dispBrushes, visibleData, scales]);
 
-  // Notify parent only when the actual set of IDs changes
   const prevFilteredRef = useRef(null);
   useEffect(() => {
     const prev = prevFilteredRef.current;
@@ -125,15 +105,12 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
     }
   }, [filteredIds]);
 
-  // When leaving macro view the PCP unmounts — reset the parent filter so
-  // tiles aren't stale-filtered when returning to macro
   useEffect(() => {
     return () => {
       onFilterRef.current(null);
     };
   }, []);
 
-  // ── SVG helpers ───────────────────────────────────────────────────────────
   const clientToSvgY = useCallback((clientY) => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return TOP_PAD;
@@ -150,7 +127,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
     [scales]
   );
 
-  // ── Brush interaction ─────────────────────────────────────────────────────
   const onAxisDown = useCallback(
     (e, axisKey) => {
       e.preventDefault();
@@ -225,10 +201,8 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
 
   const hasBrush = Object.keys(brushes).length > 0;
 
-  // ── Sorted-by label ───────────────────────────────────────────────────────
   const sortLabel = PCP_AXES.find((a) => a.key === sortKey)?.label ?? sortKey;
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="pcpWrapper">
       <div className="pcpHeader">
@@ -253,7 +227,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
         height={VH}
         style={{ display: "block" }}
       >
-        {/* Draw dimmed lines first (under), highlighted lines on top */}
         {filteredIds !== null &&
           visibleData
             .filter((d) => !filteredIds.has(d.tile_id))
@@ -281,7 +254,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
             />
           ))}
 
-        {/* ── Axes ── */}
         {PCP_AXES.map(({ key, label }, i) => {
           const x      = axX(i);
           const brush  = dispBrushes[key];
@@ -296,7 +268,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
 
           return (
             <g key={key}>
-              {/* Invisible hit-area for brush creation */}
               <rect
                 x={x - 10}
                 y={TOP_PAD}
@@ -307,7 +278,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
                 onMouseDown={(e) => onAxisDown(e, key)}
               />
 
-              {/* Axis line */}
               <line
                 x1={x} y1={TOP_PAD}
                 x2={x} y2={TOP_PAD + AXIS_H}
@@ -316,7 +286,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
                 pointerEvents="none"
               />
 
-              {/* Tick marks + value labels */}
               {ticks.map(({ y, val }, ti) => (
                 <g key={ti} pointerEvents="none">
                   <line
@@ -338,7 +307,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
                 </g>
               ))}
 
-              {/* Active brush */}
               {brush && (
                 <g>
                   <rect
@@ -369,7 +337,6 @@ export function ParallelCoordinateChart({ data, visibleIds, sortKey, onSortChang
                 </g>
               )}
 
-              {/* Axis label — click to sort */}
               <text
                 x={x}
                 y={TOP_PAD - 10}

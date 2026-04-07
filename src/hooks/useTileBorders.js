@@ -65,14 +65,6 @@ function buildFrameGeoJSON(tile) {
   };
 }
 
-/**
- * Adds thin border lines around each visible tile on the map,
- * plus a red frame highlight for the focus tile at micro zoom.
- *
- * @param {React.RefObject} mapRef     – map instance ref
- * @param {Array}           tiles      – visible tiles
- * @param {Object|null}     focusTile  – dominant tile at micro zoom (or null)
- */
 export function useTileBorders(mapRef, tiles, focusTile = null) {
   const addedRef    = useRef(false);
   const tilesRef    = useRef(tiles);

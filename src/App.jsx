@@ -24,8 +24,6 @@ const LEVEL_BADGES   = { macro: "MACRO", meso: "MESO", micro: "MICRO" };
 
 const OVERLAY_SIZE = 256;
 
-// ── Geo → SVG point helpers ───────────────────────────────────────────────────
-
 function geoToSVGPoints(ring, west, north, geoW, geoH, size) {
   return ring.map(([lon, lat]) =>
     `${(((lon - west) / geoW) * size).toFixed(1)},${(((north - lat) / geoH) * size).toFixed(1)}`
@@ -75,8 +73,6 @@ function suggestionPaths(tile, features, size) {
   return paths;
 }
 
-// ── Micro suggestion card ─────────────────────────────────────────────────────
-
 function MicroCard({ tile, networkData, features, size, selected, onToggle }) {
   const imgUrl = `/tiles/${tile.z}/${tile.x}/${tile.y}.jpg`;
 
@@ -125,8 +121,6 @@ function MicroCard({ tile, networkData, features, size, selected, onToggle }) {
   );
 }
 
-// ── dominantTile ──────────────────────────────────────────────────────────────
-
 function dominantTile(tiles, bounds) {
   if (!tiles.length || !bounds) return tiles[0] ?? null;
   let best = tiles[0], bestArea = -1;
@@ -139,8 +133,6 @@ function dominantTile(tiles, bounds) {
   return best;
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
-
 export default function App() {
   const [sortKey,        setSortKey]        = useState("n_uncertain");
   const [macroFilterIds, setMacroFilterIds] = useState(null);
@@ -148,19 +140,16 @@ export default function App() {
   const { validMeta8x8, validating } = useValidMeta(meta8x8);
   const { suggestions, reload: reloadSuggestions } = useSuggestions();
 
-  // ── Suggestion selection + editing state ─────────────────────────────────────
   const [selectedKeys,      setSelectedKeys]      = useState(new Set());
   const [editedSuggestions, setEditedSuggestions] = useState(new Map());
   const [isDrawing,         setIsDrawing]         = useState(false);
 
-  // Resolve a single key → Feature, preferring edited version over base
   const resolveFeature = useCallback((key) => {
     if (editedSuggestions.has(key)) return editedSuggestions.get(key);
     const [tileId, nStr] = key.split(":");
     return suggestions?.get(tileId)?.get(Number(nStr))?.[0] ?? null;
   }, [editedSuggestions, suggestions]);
 
-  // Flat array of resolved features — used for training and the map fill layer
   const selectedFeatures = useMemo(() => {
     if (selectedKeys.size === 0) return [];
     return [...selectedKeys].flatMap((key) => {
@@ -169,7 +158,6 @@ export default function App() {
     });
   }, [selectedKeys, resolveFeature]);
 
-  // Map<key, Feature> for all selected suggestions — passed to the editor hook
   const editingFeaturesMap = useMemo(() => {
     if (selectedKeys.size === 0) return new Map();
     const m = new Map();
@@ -187,10 +175,8 @@ export default function App() {
     reloadSuggestions();
   }, [reloadSuggestions]);
 
-  // ── Tile selector (brush) ─────────────────────────────────────────────────────
   const tileSelector = useTileSelector({ onDone: handleInferenceDone });
 
-  // ── Training state ───────────────────────────────────────────────────────────
   const [trainingPhase,    setTrainingPhase]    = useState("idle");
   const [trainingJobId,    setTrainingJobId]    = useState(null);
   const [trainingMessage,  setTrainingMessage]  = useState("");
@@ -226,7 +212,6 @@ export default function App() {
     }
   }, [selectedFeatures]);
 
-  // ── Poll training status every 3 s ──────────────────────────────────────────
   useEffect(() => {
     if (trainingPhase !== "training" || !trainingJobId) return;
     const id = setInterval(async () => {
@@ -254,7 +239,6 @@ export default function App() {
   return (
     <div className="page">
 
-      {/* ── Confirmation modal ── */}
       {trainingPhase === "confirming" && (
         <div className="confirmOverlay">
           <div className="confirmCard">
@@ -274,9 +258,6 @@ export default function App() {
         </div>
       )}
 
-      {/* isDrawing + onToggleDraw passed to MapView so the button (rendered
-          inside leftPane in Map.jsx) can reflect and toggle drawing state.
-          Map.jsx determines visibility itself via mapZoom >= MICRO_ZOOM. */}
       <MapView
         meta2x2={meta2x2}
         sortKey={sortKey}
@@ -332,7 +313,6 @@ export default function App() {
           useSuggestionLayer(mapRef, focusTileSuggestions?.get(0) ?? null, viewLevel);
           useSelectedSuggestionsLayer(mapRef, selectedFeatures, viewLevel);
 
-          // ── Editor: handles for all selected suggestions, always on in micro ─
           const handleEditCommit = useCallback((key, updatedFeature) => {
             setEditedSuggestions((prev) => new Map(prev).set(key, updatedFeature));
           }, []);
@@ -343,7 +323,6 @@ export default function App() {
             handleEditCommit,
           );
 
-          // ── Draw new polygons ─────────────────────────────────────────────────
           const handlePolygonComplete = useCallback((closedRing) => {
             if (!focusTile) return;
             const tileId   = focusTile.id;
@@ -365,7 +344,6 @@ export default function App() {
 
           useDrawPolygon(mapRef, isDrawing, handlePolygonComplete, () => setIsDrawing(false));
 
-          // ── microSuggestions: base merged with edits/new polygons ─────────────
           const microSuggestions = useMemo(() => {
             if (!focusTile) return [];
             const tileId = focusTile.id;
@@ -445,7 +423,6 @@ export default function App() {
               )}
 
               <div className={`rightPane ${viewLevel}`}>
-                {/* ── Header ── */}
                 <div className="header">
                   <div>
                     <div className="title">
@@ -506,7 +483,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* ── PCP (macro only) ── */}
                 {viewLevel === "macro" && (
                   validating
                     ? <div className="pcpWrapper" style={{ padding: "12px", fontSize: 11, color: "#888" }}>Checking tiles…</div>
@@ -521,7 +497,6 @@ export default function App() {
                     )
                 )}
 
-                {/* ── Content ── */}
                 {viewLevel === "micro" && focusTile ? (
                   <div className="microSuggestionsList">
                     {microSuggestions.length > 0

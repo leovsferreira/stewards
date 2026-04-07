@@ -16,7 +16,6 @@ export function BrushControls({
       pointerEvents: "none",
     }}>
 
-      {/* ── Active indicator — only while Shift is held ── */}
       {brushActive && (
         <div style={{
           pointerEvents: "none",
@@ -38,7 +37,6 @@ export function BrushControls({
         </div>
       )}
 
-      {/* ── "Hold ⇧" hint — only when nothing is selected and brush is idle ── */}
       {!brushActive && selectedCount === 0 && inferencePhase === "idle" && (
         <div style={{
           pointerEvents: "none",
@@ -56,7 +54,6 @@ export function BrushControls({
         </div>
       )}
 
-      {/* ── Clear all — whenever tiles are selected ── */}
       {selectedCount > 0 && (
         <button
           onClick={clearAll}
@@ -77,7 +74,6 @@ export function BrushControls({
         </button>
       )}
 
-      {/* ── Apply model — visible when tiles are selected and idle ── */}
       {selectedCount > 0 && inferencePhase === "idle" && (
         <button
           onClick={runModel}
@@ -99,7 +95,6 @@ export function BrushControls({
         </button>
       )}
 
-      {/* ── Running — indeterminate progress bar + live stdout message ── */}
       {inferencePhase === "running" && (
         <div style={{
           pointerEvents: "none",
@@ -116,13 +111,11 @@ export function BrushControls({
           minWidth:      170,
           maxWidth:      230,
         }}>
-          {/* Spinner + label */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Spinner />
             <span>Running…</span>
           </div>
 
-          {/* Indeterminate progress bar */}
           <div style={{
             height:       3,
             background:   "#f0f0f0",
@@ -142,7 +135,6 @@ export function BrushControls({
             }} />
           </div>
 
-          {/* Latest stdout line from backend */}
           {inferenceMessage && (
             <div style={{
               fontSize:     10,
@@ -158,7 +150,6 @@ export function BrushControls({
         </div>
       )}
 
-      {/* ── Done ── */}
       {inferencePhase === "done" && (
         <div style={{
           pointerEvents: "all",
@@ -179,7 +170,6 @@ export function BrushControls({
         </div>
       )}
 
-      {/* ── Error ── */}
       {inferencePhase === "error" && (
         <div style={{
           pointerEvents: "all",
@@ -203,7 +193,6 @@ export function BrushControls({
   );
 }
 
-// ── Small helpers ─────────────────────────────────────────────────────────────
 
 function CrosshairIcon({ size }) {
   return (

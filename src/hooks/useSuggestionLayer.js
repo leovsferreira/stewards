@@ -4,23 +4,11 @@ const SOURCE_ID = "suggestions-source";
 const FILL_ID   = "suggestions-fill";
 const LINE_ID   = "suggestions-line";
 
-/**
- * Manages a MapLibre fill+line layer for the original (n_suggestion=0)
- * suggestion polygons of the focused tile.
- *
- * Visible only at micro zoom, updates reactively when focusTile changes.
- *
- * @param {React.RefObject} mapRef
- * @param {GeoJSON.Feature[]|null} originalFeatures – n_suggestion=0 features for the focused tile
- * @param {string} viewLevel – "macro" | "meso" | "micro"
- */
 export function useSuggestionLayer(mapRef, originalFeatures, viewLevel) {
   const addedRef  = useRef(false);
-  // Snapshot latest values so the async setup callback can read them without stale closure
   const latestRef = useRef({ originalFeatures, viewLevel });
   latestRef.current = { originalFeatures, viewLevel };
 
-  // ── Effect 1: one-time setup — add source + layers when map/style is ready ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -58,7 +46,6 @@ export function useSuggestionLayer(mapRef, originalFeatures, viewLevel) {
 
       addedRef.current = true;
 
-      // Immediately push whatever data is current after layers are added
       syncData(map, latestRef.current.originalFeatures, latestRef.current.viewLevel);
     };
 
@@ -75,9 +62,8 @@ export function useSuggestionLayer(mapRef, originalFeatures, viewLevel) {
       } catch { /* map may be gone */ }
       addedRef.current = false;
     };
-  }, [mapRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapRef]); 
 
-  // ── Effect 2: sync data + visibility whenever features or view level change ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !addedRef.current) return;

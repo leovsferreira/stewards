@@ -17,8 +17,6 @@ function formatValue(v) {
   return v.toFixed(2);
 }
 
-// ── Tile selector checkbox overlay ───────────────────────────────────────────
-
 function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive }) {
   const [positions, setPositions] = useState([]);
 
@@ -98,7 +96,6 @@ function TileSelectorOverlay({ mapRef, selectedTiles, previewTiles, brushActive 
   );
 }
 
-// ── MapView ───────────────────────────────────────────────────────────────────
 
 export function MapView({
   meta2x2,
@@ -128,8 +125,6 @@ export function MapView({
     reloadNetwork();
   };
 
-  // Map.jsx already tracks mapZoom — use it to gate the button without needing
-  // viewLevel to be passed back up from the render prop.
   const isMicro = mapZoom >= MICRO_ZOOM;
 
   return (
@@ -176,9 +171,6 @@ export function MapView({
           </div>
         )}
 
-        {/* Draw polygon button — inside leftPane so position: absolute is
-            relative to the map container, not the page. Sits just below the
-            MapLibre NavigationControl (top-right). Only shown in micro view. */}
         {isMicro && (
           <button
             className={`drawPolygonBtn${isDrawing ? " active" : ""}`}

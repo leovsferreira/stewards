@@ -34,9 +34,6 @@ function createMarkerElements(heading = 0) {
   return { outer, inner };
 }
 
-// brushActive is passed as a plain boolean; we track it via a ref so the
-// click handler never needs to be re-registered when it changes.
-
 export function useStreetView(mapRef, mapZoom, brushActive) {
   const [panel, setPanel] = useState({
     open: false, location: null, heading: 0, loading: false, error: null,
