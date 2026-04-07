@@ -1,6 +1,6 @@
 # Stewards — Setup Guide
 
-Stewards is a visual analytics tool for pedestrian network mapping and repair. It combines a React/MapLibre GL frontend with a Python FastAPI backend and a local tile server.
+Stewards is a visual analytics tool for pedestrian network mapping and repair. 
 
 > **About the included data and model**
 >
