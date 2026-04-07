@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-# ── Load .env from project root (two levels up from backend/) ─────────────────
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 app = FastAPI()
@@ -23,16 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Paths from .env ────────────────────────────────────────────────────────────
-
 SCRIPT_PATH  = Path(os.environ["SCRIPT_PATH"]) / "train_from_suggestions.py"
 TILES_DIR    = Path(os.environ["TILES_DIR"])
 T2N_DIR      = Path(os.environ["T2N_DIR"])
 CONF_DIR     = Path(os.environ["CONF_DIR"])
 MODEL_OUTPUT = Path(os.environ["TRAINED_MODEL_OUTPUT"]) / "suggestion_model.pt"
-
-# ── In-memory job store ────────────────────────────────────────────────────────
-# Each job: { status, message, epoch, total_epochs }
 
 jobs: dict[str, dict] = {}
 
@@ -57,11 +51,9 @@ def _run_training(job_id: str, geojson_data: dict) -> None:
             env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"},
         )
 
-        # Send GeoJSON via stdin, then close so the script sees EOF
         proc.stdin.write(json.dumps(geojson_data))
         proc.stdin.close()
 
-        # ── Parse epoch progress from stdout in real time ──
         stdout_lines = []
         epoch_re = re.compile(r"Epoch\s+(\d+)/(\d+)")
 
@@ -95,8 +87,6 @@ def _run_training(job_id: str, geojson_data: dict) -> None:
         print(f"\n[TRAINING EXCEPTION — job {job_id}]\n{exc}\n")
         jobs[job_id].update({"status": "error", "message": str(exc)})
 
-
-# ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/train")
 async def start_training(body: dict) -> dict:
@@ -154,7 +144,6 @@ def _run_inference(job_id: str, tile_ids: list[str]) -> None:
             env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"},
         )
  
-        # Stream stdout line-by-line terminal + live job status
         for line in proc.stdout:
             line = line.rstrip()
             if line:
