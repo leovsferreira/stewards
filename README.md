@@ -52,7 +52,32 @@ stewards/
 │               └── output/       ← Placeholder model weights; trained checkpoints saved here
 └── vite.config.js
 ```
-
+---
+ 
+## Step 0 — Create a Conda Environment and Install tile2net
+ 
+It is strongly recommended to run Stewards inside a dedicated conda environment. tile2net is not available on PyPI and must be installed from source before the rest of the Python dependencies.
+ 
+**Create and activate the environment:**
+ 
+```bash
+conda create -n stewards python=3.10
+conda activate stewards
+```
+ 
+**Clone and install tile2net from source:**
+ 
+```bash
+git clone https://github.com/VIDA-NYU/tile2net.git
+cd tile2net
+pip install -e .
+cd ..
+```
+ 
+> Keep the `tile2net/` folder wherever you cloned it — the `-e` flag installs it in editable mode, so the folder must remain in place. You do not need to place it inside the Stewards project directory.
+ 
+> All subsequent steps assume the `stewards` conda environment is active. Run `conda activate stewards` at the start of every session before launching any of the three processes.
+ 
 ---
 
 ## Step 1 — Clone the Repository
