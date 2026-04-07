@@ -58,22 +58,27 @@ stewards/
 ## Step 1 — Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/urban-toolkit/sidewalk-stewards.git
 cd stewards
 ```
 
 ---
 
 ## Step 2 — Download and Place the Data Folder
-
+ 
 The `stewards_files` folder (~600 MB) contains the sample data for the Dorchester neighborhood of Boston along with a placeholder model. It is distributed as a release asset on GitHub due to file size.
-
+ 
+> **Warning:** If you have a previous version of `stewards_files/` in `./backend/`, delete it entirely before extracting the new archive. Do not merge or overwrite — remove the old folder first to avoid stale files causing conflicts.
+> ```bash
+> rm -rf backend/stewards_files
+> ```
+ 
 **Option A — Command line** (from the project root):
 
 ```bash
 # Download
 curl -L -o backend/stewards_files.zip \
-  https://github.com/<your-org>/<repo>/releases/download/v1.0-data/stewards_files.zip
+  https://github.com/urban-toolkit/sidewalk-stewards/releases/download/v1.0-data/stewards_files.zip
 
 # Unzip into ./backend/
 unzip backend/stewards_files.zip -d backend/
@@ -82,13 +87,13 @@ unzip backend/stewards_files.zip -d backend/
 rm backend/stewards_files.zip
 ```
 
-**Option B — Manual:** Download `stewards_files.zip` from the [Releases page](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data), unzip it, and move the resulting `stewards_files/` folder into `./backend/`.
+**Option B — Manual:** Download `stewards_files.zip` from the [Releases page](https://github.com/urban-toolkit/sidewalk-stewards/releases/tag/v1.0-data), unzip it, and move the resulting `stewards_files/` folder into `./backend/`.
 
 After extraction the structure should be:
 
 ```
 stewards_files/
-├── map_tiles/                      ← Used by the tile server (port 8002)
+├── map_tiles/                      ← Used by the tile server (port 8000)
 └── boston/
     ├── tiles/                      ← Dorchester sample only
     ├── masks_tile2net_polygons/    ← Dorchester sample only
@@ -107,10 +112,10 @@ stewards_files/
 
 ## Step 3 — Create Your `.env` File
 
-Create a file named `.env` in the **project root** (`stewards/.env`). This file configures all local file paths and your Google Maps API key. It is gitignored and must be created manually on each machine.
+Create a file named `.env` in the **project root** (`stewards/.env`). This file configures all local file paths and your Google Maps API key.
 
 ```dotenv
-# ── Satellite tile directories (zoom-20 PNG files) ──
+# ── Satellite tile directories ──
 TILES_DIR=C:/Users/your_user/path/to/stewards/backend/stewards_files/boston/tiles
 
 # ── tile2net prediction mask directory ──
@@ -218,13 +223,13 @@ http://localhost:8001
 From the **project root**:
 
 ```bash
-python -m http.server 8002 --directory ./backend/stewards_files/map_tiles
+python -m http.server 8000 --directory ./backend/stewards_files/map_tiles
 ```
 
 Serves the raster map tile files used as the base map. Tiles are requested by the frontend at:
 
 ```
-http://localhost:8002/{z}/{x}/{y}.png
+http://localhost:8000/{z}/{x}/{y}.png
 ```
 
 ---
@@ -248,7 +253,7 @@ If anything fails to load, check the browser console and each terminal for error
 Confirm the tile server (Terminal 3) is running and that `./backend/stewards_files/map_tiles/` exists and contains tile files in `{z}/{x}/{y}.png` format.
 
 **Polygons or network don't appear**  
-Confirm that `public/polygons.geojson` and `public/network.geojson` exist at the project root. These are distributed separately from the repository.
+Confirm that `public/polygons.geojson` and `public/network.geojson` exist at the project root.
 
 **Backend returns a 500 error on training or inference**  
 Check that all `.env` paths are correct and point to existing directories. Confirm that `stewards_scripts/` contains `train_from_suggestions.py` and `apply_model.py`, and that Python dependencies are installed in the same environment used to run Uvicorn.
@@ -259,21 +264,6 @@ Ensure you are using Python ≥ 3.9. The backend explicitly sets `encoding="utf-
 **Street View panel does not load**  
 Confirm that `VITE_GOOGLE_MAPS_KEY` is set correctly in `.env` and that the key has the **Maps JavaScript API** and **Street View Static API** enabled in the Google Cloud Console.
 
-**Port already in use**  
-If any port (5173, 8001, or 8002) is occupied, stop the conflicting process. If you need to change port 8001 or 8002, update `vite.config.js` to match.
-
----
-
-## Required Files Summary
-
-| File / Folder | Source | Location in Project | Notes |
-|---|---|---|---|
-| `backend/stewards_files/` | [GitHub Releases](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data) | `stewards/backend/stewards_files/` | Dorchester sample data + placeholder model |
-| `public/polygons.geojson` | [GitHub Releases](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data) | `stewards/public/` | Dorchester sample |
-| `public/network.geojson` | [GitHub Releases](https://github.com/<your-org>/<repo>/releases/tag/v1.0-data) | `stewards/public/` | Dorchester sample |
-| `.env` | Created manually per machine | `stewards/.env` | |
-| `VITE_GOOGLE_MAPS_KEY` | Google Cloud Console | Inside `.env` | |
-
 ---
 
 ## Port Reference
@@ -282,4 +272,4 @@ If any port (5173, 8001, or 8002) is occupied, stop the conflicting process. If 
 |---|---|---|
 | Frontend (Vite) | 5173 | Project root |
 | Backend API (FastAPI) | 8001 | `./backend/` |
-| Map Tile Server | 8002 | Project root |
+| Map Tile Server | 8000 | Project root |
