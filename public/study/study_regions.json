@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "description": "Matched study areas for the Sidewalk Stewards and QGIS comparative user study.",
+  "tasks": {
+    "identification": {
+      "label": "Error Identification",
+      "pairs": {
+        "A": {
+          "regions": [
+            "19828_24255",
+            "19829_24257"
+          ]
+        },
+        "B": {
+          "regions": [
+            "19828_24250",
+            "19828_24253"
+          ]
+        }
+      }
+    },
+    "correction": {
+      "label": "Error Correction",
+      "pairs": {
+        "A": {
+          "regions": [
+            "19832_24251",
+            "19832_24253"
+          ]
+        },
+        "B": {
+          "regions": [
+            "19829_24258",
+            "19832_24255"
+          ]
+        }
+      }
+    },
+    "end-to-end": {
+      "label": "Fixed-Duration End-to-End",
+      "pairs": {
+        "A": {
+          "regions": [
+            "19829_24250",
+            "19831_24253"
+          ]
+        },
+        "B": {
+          "regions": [
+            "19829_24249",
+            "19831_24251"
+          ]
+        }
+      }
+    }
+  }
+}
