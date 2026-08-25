@@ -21,6 +21,11 @@ const MAP_STYLE = {
   layers: [{ id: "carto", type: "raster", source: "carto" }],
 };
 
+const CITY_CENTERS = {
+  boston: [-71.06, 42.3],   // Dorchester
+  recife: [-34.8745, -8.0535],
+};
+
 export function useMap() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -34,7 +39,8 @@ export function useMap() {
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: MAP_STYLE,
-      center: [-71.06, 42.3], // Dorchester / Boston area
+      // center: [-71.06, 42.3], // Dorchester / Boston area
+      center: CITY_CENTERS[import.meta.env.VITE_CITY] ?? CITY_CENTERS.boston,
       zoom: 13,
     });
 
