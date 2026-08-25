@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "tiles": "python -m http.server 8000 --directory ./backend/stewards_files/map_tiles_$(grep '^CITY=' .env | cut -d= -f2)",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
