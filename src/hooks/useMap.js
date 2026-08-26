@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { tileToLngLatBounds } from "../utils/tileUtils";
 
+const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
+
 const MAP_STYLE = {
   version: 8,
   sources: {
     carto: {
       type: "raster",
       tiles: [
-        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-        "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+        `https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
+        `https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
+        `https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
+        `https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
       ],
       tileSize: 256,
       maxzoom: 19,
