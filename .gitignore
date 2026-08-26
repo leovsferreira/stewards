@@ -26,3 +26,4 @@ dist-ssr
 .env
 backend/stewards_files/
 backend/__pycache__/
+.claude/

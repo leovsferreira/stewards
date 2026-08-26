@@ -795,3 +795,41 @@ html, body, #root {
 .drawPolygonBtn.active:hover {
   background: #dcfce7;
 }
+
+.drawEdgeBtn {
+  position: absolute;
+  top: 144px;
+  right: 10px;
+  z-index: 10;
+
+  width: 29px;
+  height: 29px;
+  padding: 0;
+
+  background: #fff;
+  border: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  color: #333;
+  transition: background 0.12s ease, color 0.12s ease;
+  user-select: none;
+}
+
+.drawEdgeBtn:hover {
+  background: #f5f5f5;
+}
+
+.drawEdgeBtn.active {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.drawEdgeBtn.active:hover {
+  background: #ffedd5;
+}

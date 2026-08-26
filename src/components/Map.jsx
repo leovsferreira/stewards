@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useMap } from "../hooks/useMap";
 import { useHeatmap } from "../hooks/useHeatmap";
 import { useNetworkEditor } from "../hooks/useNetworkEditor";
+import { useDrawEdges } from "../hooks/useDrawEdges";
 import { useNetworkData } from "../hooks/useNetworkData";
 import { useStreetView } from "../hooks/useStreetView";
 import { NetworkEditorMenu } from "./NetworkEditorMenu";
@@ -106,6 +107,9 @@ export function MapView({
   previewTiles,
   isDrawing   = false,
   onToggleDraw,
+  isDrawingEdges = false,
+  onToggleDrawEdges,
+  onCancelDrawEdges,
   children,
 }) {
   const { mapContainerRef, mapRef, bounds, mapZoom, flyToTile, fitToTile } = useMap();
@@ -114,8 +118,17 @@ export function MapView({
   const valueRange = useHeatmap(mapRef, meta2x2, sortKey, heatmapOn && mapZoom < 16, filterIds);
 
   const { data: networkData, reload: reloadNetwork } = useNetworkData();
-  const { contextMenu, setContextMenu, splitEdge, deleteNode, saveNetwork, dirty, saving } =
-    useNetworkEditor(mapRef, networkData);
+  const {
+    contextMenu, setContextMenu, splitEdge, deleteNode, saveNetwork, dirty, saving,
+    addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat,
+  } = useNetworkEditor(mapRef, networkData);
+
+  useDrawEdges(
+    mapRef,
+    isDrawingEdges,
+    { addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat },
+    onCancelDrawEdges,
+  );
 
   const { panel: svPanel, closePanel: closeSV, onPanoChange } =
     useStreetView(mapRef, mapZoom, brushActive);
@@ -186,6 +199,22 @@ export function MapView({
               <circle cx="8"  cy="15" r="1.5" fill="currentColor" stroke="none" />
               <circle cx="2"  cy="11" r="1.5" fill="currentColor" stroke="none" />
               <circle cx="2"  cy="5"  r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+        )}
+
+        {isMicro && (
+          <button
+            className={`drawEdgeBtn${isDrawingEdges ? " active" : ""}`}
+            onClick={onToggleDrawEdges}
+            title={isDrawingEdges ? "Cancel edge drawing (Esc)" : "Draw edges"}
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
+              <polyline points="2,13 8,9 14,3" />
+              <circle cx="2"  cy="13" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="8"  cy="9"  r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="14" cy="3"  r="1.5" fill="currentColor" stroke="none" />
             </svg>
           </button>
         )}

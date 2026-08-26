@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { isDrawingEdgesRef } from "./drawingState";
 
 const EDGE_SOURCE = "editor-edges-source";
 const EDGE_LAYER  = "editor-edges-layer";
 const EDGE_HIT    = "editor-edges-hit";
 const NODE_SOURCE = "editor-nodes-source";
-const NODE_LAYER  = "editor-nodes-layer";
+export const NODE_LAYER = "editor-nodes-layer";
 const MESO_ZOOM   = 16;
 const MICRO_ZOOM = 18.5;
 
@@ -117,6 +118,7 @@ export function useNetworkEditor(mapRef, networkData) {
   const cacheRef       = useRef({ nodeFC: null, edgeFC: null, nodeFeatMap: new Map(), edgeFeatMap: new Map() });
   const draggingRef    = useRef(null);
   const hoveredNodeRef = useRef(null);
+  const drawSeqRef     = useRef(0);
 
   const [contextMenu, setContextMenu] = useState(null);
   const [dirty, setDirty]             = useState(false);
@@ -199,6 +201,7 @@ export function useNetworkEditor(mapRef, networkData) {
     };
 
     const onNodeMouseDown = (e) => {
+      if (isDrawingEdgesRef.current) return;
       if (e.originalEvent?.button !== 0) return;
       e.preventDefault();
       const nodeId = e.features?.[0]?.properties?.id;
@@ -293,7 +296,7 @@ export function useNetworkEditor(mapRef, networkData) {
       if (!nodeId) return;
       hoveredNodeRef.current = nodeId;
       map.setFeatureState({ source: NODE_SOURCE, id: nodeId }, { hover: true });
-      map.getCanvas().style.cursor = "grab";
+      if (!isDrawingEdgesRef.current) map.getCanvas().style.cursor = "grab";
     };
     const onNodeLeave = () => {
       if (draggingRef.current) return;
@@ -301,10 +304,10 @@ export function useNetworkEditor(mapRef, networkData) {
         map.setFeatureState({ source: NODE_SOURCE, id: hoveredNodeRef.current }, { hover: false });
         hoveredNodeRef.current = null;
       }
-      map.getCanvas().style.cursor = "";
+      if (!isDrawingEdgesRef.current) map.getCanvas().style.cursor = "";
     };
-    const onEdgeEnter = () => { if (!draggingRef.current) map.getCanvas().style.cursor = "pointer"; };
-    const onEdgeLeave = () => { if (!draggingRef.current) map.getCanvas().style.cursor = ""; };
+    const onEdgeEnter = () => { if (!draggingRef.current && !isDrawingEdgesRef.current) map.getCanvas().style.cursor = "pointer"; };
+    const onEdgeLeave = () => { if (!draggingRef.current && !isDrawingEdgesRef.current) map.getCanvas().style.cursor = ""; };
 
     let cancelled = false;
 
@@ -463,5 +466,77 @@ export function useNetworkEditor(mapRef, networkData) {
     markDirty();
   };
 
-  return { contextMenu, setContextMenu, splitEdge, deleteNode, saveNetwork, dirty, saving };
+  const getNodeLngLat = useCallback((nodeId) => {
+    const n = netRef.current.nodes.get(nodeId);
+    return n ? [n.lng, n.lat] : null;
+  }, []);
+
+  const addDrawnNode = useCallback((lng, lat) => {
+    const { nodes, nodeEdgeIndex } = netRef.current;
+    const { nodeFeatMap, nodeFC } = cacheRef.current;
+    if (!nodeFC) return null;
+
+    const id = `n_draw_${Date.now()}_${drawSeqRef.current++}`;
+    nodes.set(id, { id, lng, lat });
+    nodeEdgeIndex.set(id, new Set());
+
+    const f = { type: "Feature", properties: { id }, geometry: { type: "Point", coordinates: [lng, lat] } };
+    nodeFeatMap.set(id, f);
+    nodeFC.features.push(f);
+    mapRef.current?.getSource(NODE_SOURCE)?.setData(nodeFC);
+    return id;
+  }, [mapRef]);
+
+  const addDrawnEdge = useCallback((fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return null;
+    const { nodes, edges, nodeEdgeIndex } = netRef.current;
+    const { edgeFeatMap, edgeFC } = cacheRef.current;
+    const from = nodes.get(fromId);
+    const to = nodes.get(toId);
+    if (!from || !to || !edgeFC) return null;
+
+    for (const eid of nodeEdgeIndex.get(fromId) ?? []) {
+      const ids = edges.get(eid)?.nodeIds ?? [];
+      for (let i = 0; i < ids.length; i++) {
+        if (ids[i] === fromId && (ids[i - 1] === toId || ids[i + 1] === toId)) return null;
+      }
+    }
+
+    const id = `e_draw_${Date.now()}_${drawSeqRef.current++}`;
+    edges.set(id, { id, nodeIds: [fromId, toId] });
+    for (const nid of [fromId, toId]) {
+      if (!nodeEdgeIndex.has(nid)) nodeEdgeIndex.set(nid, new Set());
+      nodeEdgeIndex.get(nid).add(id);
+    }
+
+    const f = {
+      type: "Feature",
+      properties: { id },
+      geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] },
+    };
+    edgeFeatMap.set(id, f);
+    edgeFC.features.push(f);
+    mapRef.current?.getSource(EDGE_SOURCE)?.setData(edgeFC);
+    markDirty();
+    return id;
+  }, [mapRef]);
+
+  const removeNodeIfOrphan = useCallback((nodeId) => {
+    const { nodes, nodeEdgeIndex } = netRef.current;
+    const { nodeFeatMap, nodeFC } = cacheRef.current;
+    if (!nodes.has(nodeId)) return;
+    if ((nodeEdgeIndex.get(nodeId)?.size ?? 0) > 0) return;
+
+    nodes.delete(nodeId);
+    nodeEdgeIndex.delete(nodeId);
+    nodeFeatMap.delete(nodeId);
+    const idx = nodeFC ? nodeFC.features.findIndex((f) => f.properties.id === nodeId) : -1;
+    if (idx !== -1) nodeFC.features.splice(idx, 1);
+    mapRef.current?.getSource(NODE_SOURCE)?.setData(nodeFC);
+  }, [mapRef]);
+
+  return {
+    contextMenu, setContextMenu, splitEdge, deleteNode, saveNetwork, dirty, saving,
+    addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat,
+  };
 }

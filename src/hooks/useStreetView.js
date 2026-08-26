@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import maplibregl from "maplibre-gl";
-import { isDrawingRef } from "./drawingState";
+import { isDrawingRef, isDrawingEdgesRef } from "./drawingState";
 
 const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 const MICRO_ZOOM = 18.5;
@@ -80,6 +80,7 @@ export function useStreetView(mapRef, mapZoom, brushActive) {
     const handleClick = async (e) => {
       if (brushRef.current)    return;
       if (isDrawingRef.current) return;
+      if (isDrawingEdgesRef.current) return;
       if (zoomRef.current < MICRO_ZOOM) return;
 
       const { lng, lat } = e.lngLat;

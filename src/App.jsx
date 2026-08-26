@@ -143,6 +143,7 @@ export default function App() {
   const [selectedKeys,      setSelectedKeys]      = useState(new Set());
   const [editedSuggestions, setEditedSuggestions] = useState(new Map());
   const [isDrawing,         setIsDrawing]         = useState(false);
+  const [isDrawingEdges,    setIsDrawingEdges]    = useState(false);
 
   const resolveFeature = useCallback((key) => {
     if (editedSuggestions.has(key)) return editedSuggestions.get(key);
@@ -266,7 +267,10 @@ export default function App() {
         selectedTiles={tileSelector.selectedTiles}
         previewTiles={tileSelector.previewTiles}
         isDrawing={isDrawing}
-        onToggleDraw={() => setIsDrawing((v) => !v)}
+        onToggleDraw={() => { setIsDrawing((v) => !v); setIsDrawingEdges(false); }}
+        isDrawingEdges={isDrawingEdges}
+        onToggleDrawEdges={() => { setIsDrawingEdges((v) => !v); setIsDrawing(false); }}
+        onCancelDrawEdges={() => setIsDrawingEdges(false)}
       >
         {({ bounds, mapZoom, flyToTile, fitToTile, networkData, mapRef, reloadNetwork, dirty, saving, handleSave }) => {
           reloadNetworkRef.current = reloadNetwork;
