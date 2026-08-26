@@ -81,34 +81,47 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
       sync();
     };
 
+    const armPending = () => {
+      pendingClick.timer = setTimeout(() => {
+        const p = pendingClick;
+        pendingClick = null;
+        for (const c of p.clicks) commitClick(c.lngLat);
+      }, 220);
+    };
+
     h.click = (e) => {
       if (brushRef.current) return;
 
-      const point  = e.point;
-      const lngLat = [e.lngLat.lng, e.lngLat.lat];
+      const click = { point: e.point, lngLat: [e.lngLat.lng, e.lngLat.lat] };
 
       if (pendingClick !== null) {
         clearTimeout(pendingClick.timer);
-        const prev = pendingClick;
+        const last = pendingClick.clicks[pendingClick.clicks.length - 1];
+        const dist = Math.hypot(last.point.x - click.point.x, last.point.y - click.point.y);
+        if (dist < 8) {
+          // possible double-click pair: held until either the dblclick event
+          // cancels it or the timer commits both (browser slop can be < 8px)
+          pendingClick.clicks.push(click);
+          armPending();
+          return;
+        }
+        const p = pendingClick;
         pendingClick = null;
-        const dist = Math.hypot(prev.point.x - point.x, prev.point.y - point.y);
-        if (dist < 8) return; // double-click precursor: h.dblclick handles it
-        commitClick(prev.lngLat); // two distinct fast clicks: keep both
+        for (const c of p.clicks) commitClick(c.lngLat); // distinct fast clicks: keep them
       }
 
-      pendingClick = {
-        point,
-        lngLat,
-        timer: setTimeout(() => {
-          pendingClick = null;
-          commitClick(lngLat);
-        }, 220),
-      };
+      pendingClick = { clicks: [click] };
+      armPending();
     };
 
     h.dblclick = (e) => {
       e.preventDefault();
-      if (pendingClick !== null) { clearTimeout(pendingClick.timer); pendingClick = null; }
+      if (pendingClick !== null) {
+        clearTimeout(pendingClick.timer);
+        const rest = pendingClick.clicks.slice(0, -2); // drop the double-click pair
+        pendingClick = null;
+        for (const c of rest) commitClick(c.lngLat);
+      }
       prevNodeRef.current = null;
       sync();
     };
@@ -125,7 +138,7 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
       if (e.key === "Escape") onCancelRef.current?.();
     };
 
-    const setup = () => {
+    const ensureLayers = () => {
       if (!map.getSource(DRAW_SOURCE)) {
         map.addSource(DRAW_SOURCE, {
           type: "geojson",
@@ -142,20 +155,20 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
           },
         });
       }
-
       addedRef.current = true;
-      map.getCanvas().style.cursor = "crosshair";
-
-      map.on("click",     h.click);
-      map.on("dblclick",  h.dblclick);
-      map.on("mousemove", h.mousemove);
-      document.addEventListener("keydown", h.keydown);
     };
 
-    // "idle" (not "load"): load fires only once per map lifetime, while the
-    // style can be transiently un-loaded here (e.g. a source reprocessing)
-    if (map.isStyleLoaded()) setup();
-    else map.once("idle", setup);
+    // handlers attach immediately so clicks/Esc work even while the style is
+    // busy; only the preview layer needs a loaded style. "idle" (not "load"):
+    // load fires once per map lifetime, idle after every settle.
+    map.getCanvas().style.cursor = "crosshair";
+    map.on("click",     h.click);
+    map.on("dblclick",  h.dblclick);
+    map.on("mousemove", h.mousemove);
+    document.addEventListener("keydown", h.keydown);
+
+    if (map.isStyleLoaded()) ensureLayers();
+    else map.once("idle", ensureLayers);
 
     return () => {
       if (pendingClick !== null) { clearTimeout(pendingClick.timer); pendingClick = null; }
@@ -167,12 +180,13 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
 
       const m = mapRef.current;
       if (m) {
-        m.off("idle",      setup);
+        m.off("idle",      ensureLayers);
         m.off("click",     h.click);
         m.off("dblclick",  h.dblclick);
         m.off("mousemove", h.mousemove);
+        // the shift-brush also uses a crosshair; don't wipe it if it's active
+        m.getCanvas().style.cursor = brushRef.current ? "crosshair" : "";
         if (addedRef.current) {
-          m.getCanvas().style.cursor = "";
           try {
             if (m.getLayer(DRAW_LINE))    m.removeLayer(DRAW_LINE);
             if (m.getSource(DRAW_SOURCE)) m.removeSource(DRAW_SOURCE);

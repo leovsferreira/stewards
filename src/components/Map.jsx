@@ -144,8 +144,9 @@ export function MapView({
     useStreetView(mapRef, mapZoom, brushActive);
 
   const handleSave = async () => {
-    await saveNetwork();
-    reloadNetwork();
+    const ok = await saveNetwork();
+    // reloading after a failed save would wipe the unsaved edits and clear dirty
+    if (ok) reloadNetwork();
   };
 
   return (

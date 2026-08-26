@@ -158,9 +158,11 @@ export function useNetworkEditor(mapRef, networkData) {
       }
       setDirty(false);
       console.log("Network saved successfully");
+      return true;
     } catch (err) {
       console.error("Failed to save network:", err);
       alert(`Failed to save network: ${err.message}`);
+      return false;
     } finally {
       setSaving(false);
     }
