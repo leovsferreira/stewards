@@ -275,6 +275,7 @@ export function useNetworkEditor(mapRef, networkData) {
 
     const onEdgeContextMenu = (e) => {
       e.preventDefault();
+      if (isDrawingEdgesRef.current) return;
       const edgeId = e.features?.[0]?.properties?.id;
       if (!edgeId) return;
       setContextMenu({ type: "edge", edgeId, x: e.point.x, y: e.point.y, lng: e.lngLat.lng, lat: e.lngLat.lat });
@@ -282,6 +283,7 @@ export function useNetworkEditor(mapRef, networkData) {
 
     const onNodeContextMenu = (e) => {
       e.preventDefault();
+      if (isDrawingEdgesRef.current) return;
       if (draggingRef.current) return;
       const nodeId = e.features?.[0]?.properties?.id;
       if (!nodeId) return;

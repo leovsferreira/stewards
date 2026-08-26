@@ -128,7 +128,17 @@ export function MapView({
     isDrawingEdges,
     { addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat },
     onCancelDrawEdges,
+    networkData,
+    brushActive,
   );
+
+  const isMicro = mapZoom >= MICRO_ZOOM;
+
+  // node snapping needs the rendered node layer (minzoom 18.5), so the mode
+  // cannot outlive the microview
+  useEffect(() => {
+    if (isDrawingEdges && !isMicro) onCancelDrawEdges?.();
+  }, [isDrawingEdges, isMicro, onCancelDrawEdges]);
 
   const { panel: svPanel, closePanel: closeSV, onPanoChange } =
     useStreetView(mapRef, mapZoom, brushActive);
@@ -137,8 +147,6 @@ export function MapView({
     await saveNetwork();
     reloadNetwork();
   };
-
-  const isMicro = mapZoom >= MICRO_ZOOM;
 
   return (
     <>
