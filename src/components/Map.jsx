@@ -3,6 +3,7 @@ import { useMap } from "../hooks/useMap";
 import { useHeatmap } from "../hooks/useHeatmap";
 import { useNetworkEditor } from "../hooks/useNetworkEditor";
 import { useDrawEdges } from "../hooks/useDrawEdges";
+import { useDeleteNodes } from "../hooks/useDeleteNodes";
 import { useNetworkData } from "../hooks/useNetworkData";
 import { useStreetView } from "../hooks/useStreetView";
 import { NetworkEditorMenu } from "./NetworkEditorMenu";
@@ -110,6 +111,9 @@ export function MapView({
   isDrawingEdges = false,
   onToggleDrawEdges,
   onCancelDrawEdges,
+  isDeletingNodes = false,
+  onToggleDeleteNodes,
+  onCancelDeleteNodes,
   children,
 }) {
   const { mapContainerRef, mapRef, bounds, mapZoom, flyToTile, fitToTile } = useMap();
@@ -119,7 +123,7 @@ export function MapView({
 
   const { data: networkData, reload: reloadNetwork } = useNetworkData();
   const {
-    contextMenu, setContextMenu, splitEdge, deleteNode, saveNetwork, dirty, saving,
+    contextMenu, setContextMenu, splitEdge, deleteNode, deleteNodes, saveNetwork, dirty, saving,
     addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat,
   } = useNetworkEditor(mapRef, networkData);
 
@@ -132,13 +136,22 @@ export function MapView({
     brushActive,
   );
 
+  useDeleteNodes(
+    mapRef,
+    isDeletingNodes,
+    { deleteNodes, getNodeLngLat },
+    onCancelDeleteNodes,
+    brushActive,
+  );
+
   const isMicro = mapZoom >= MICRO_ZOOM;
 
-  // node snapping needs the rendered node layer (minzoom 18.5), so the mode
-  // cannot outlive the microview
+  // both modes depend on the rendered node layer (minzoom 18.5), so neither
+  // can outlive the microview
   useEffect(() => {
     if (isDrawingEdges && !isMicro) onCancelDrawEdges?.();
-  }, [isDrawingEdges, isMicro, onCancelDrawEdges]);
+    if (isDeletingNodes && !isMicro) onCancelDeleteNodes?.();
+  }, [isDrawingEdges, isDeletingNodes, isMicro, onCancelDrawEdges, onCancelDeleteNodes]);
 
   const { panel: svPanel, closePanel: closeSV, onPanoChange } =
     useStreetView(mapRef, mapZoom, brushActive);
@@ -224,6 +237,23 @@ export function MapView({
               <circle cx="2"  cy="13" r="1.5" fill="currentColor" stroke="none" />
               <circle cx="8"  cy="9"  r="1.5" fill="currentColor" stroke="none" />
               <circle cx="14" cy="3"  r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+        )}
+
+        {isMicro && (
+          <button
+            className={`deleteNodesBtn${isDeletingNodes ? " active" : ""}`}
+            onClick={onToggleDeleteNodes}
+            title={isDeletingNodes ? "Cancel node deletion (Esc)" : "Delete nodes in an area"}
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
+              <path d="M2.5 4.5h11" />
+              <path d="M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5" />
+              <path d="M3.5 4.5l.7 8.6a1 1 0 0 0 1 .9h5.6a1 1 0 0 0 1-.9l.7-8.6" />
+              <path d="M6.3 7.5v3.5" />
+              <path d="M9.7 7.5v3.5" />
             </svg>
           </button>
         )}

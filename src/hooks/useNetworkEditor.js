@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { isDrawingEdgesRef } from "./drawingState";
+import { isDrawingEdgesRef, isDeletingNodesRef } from "./drawingState";
 
 const EDGE_SOURCE = "editor-edges-source";
 const EDGE_LAYER  = "editor-edges-layer";
@@ -204,7 +204,7 @@ export function useNetworkEditor(mapRef, networkData) {
     };
 
     const onNodeMouseDown = (e) => {
-      if (isDrawingEdgesRef.current) return;
+      if (isDrawingEdgesRef.current || isDeletingNodesRef.current) return;
       if (e.originalEvent?.button !== 0) return;
       e.preventDefault();
       const nodeId = e.features?.[0]?.properties?.id;
@@ -278,7 +278,7 @@ export function useNetworkEditor(mapRef, networkData) {
 
     const onEdgeContextMenu = (e) => {
       e.preventDefault();
-      if (isDrawingEdgesRef.current) return;
+      if (isDrawingEdgesRef.current || isDeletingNodesRef.current) return;
       const edgeId = e.features?.[0]?.properties?.id;
       if (!edgeId) return;
       setContextMenu({ type: "edge", edgeId, x: e.point.x, y: e.point.y, lng: e.lngLat.lng, lat: e.lngLat.lat });
@@ -286,7 +286,7 @@ export function useNetworkEditor(mapRef, networkData) {
 
     const onNodeContextMenu = (e) => {
       e.preventDefault();
-      if (isDrawingEdgesRef.current) return;
+      if (isDrawingEdgesRef.current || isDeletingNodesRef.current) return;
       if (draggingRef.current) return;
       const nodeId = e.features?.[0]?.properties?.id;
       if (!nodeId) return;
@@ -301,7 +301,7 @@ export function useNetworkEditor(mapRef, networkData) {
       if (!nodeId) return;
       hoveredNodeRef.current = nodeId;
       map.setFeatureState({ source: NODE_SOURCE, id: nodeId }, { hover: true });
-      if (!isDrawingEdgesRef.current) map.getCanvas().style.cursor = "grab";
+      if (!isDrawingEdgesRef.current && !isDeletingNodesRef.current) map.getCanvas().style.cursor = "grab";
     };
     const onNodeLeave = () => {
       if (draggingRef.current) return;
@@ -309,10 +309,10 @@ export function useNetworkEditor(mapRef, networkData) {
         map.setFeatureState({ source: NODE_SOURCE, id: hoveredNodeRef.current }, { hover: false });
         hoveredNodeRef.current = null;
       }
-      if (!isDrawingEdgesRef.current) map.getCanvas().style.cursor = "";
+      if (!isDrawingEdgesRef.current && !isDeletingNodesRef.current) map.getCanvas().style.cursor = "";
     };
-    const onEdgeEnter = () => { if (!draggingRef.current && !isDrawingEdgesRef.current) map.getCanvas().style.cursor = "pointer"; };
-    const onEdgeLeave = () => { if (!draggingRef.current && !isDrawingEdgesRef.current) map.getCanvas().style.cursor = ""; };
+    const onEdgeEnter = () => { if (!draggingRef.current && !isDrawingEdgesRef.current && !isDeletingNodesRef.current) map.getCanvas().style.cursor = "pointer"; };
+    const onEdgeLeave = () => { if (!draggingRef.current && !isDrawingEdgesRef.current && !isDeletingNodesRef.current) map.getCanvas().style.cursor = ""; };
 
     let cancelled = false;
 
@@ -441,34 +441,8 @@ export function useNetworkEditor(mapRef, networkData) {
   };
 
   const deleteNode = (nodeId) => {
-    const { nodes, edges, nodeEdgeIndex } = netRef.current;
-    const { nodeFeatMap, nodeFC, edgeFeatMap, edgeFC } = cacheRef.current;
-
-    const connectedEdgeIds = new Set(nodeEdgeIndex.get(nodeId) ?? []);
-    for (const eid of connectedEdgeIds) {
-      edges.delete(eid);
-      edgeFeatMap.delete(eid);
-      const idx = edgeFC.features.findIndex((f) => f.properties.id === eid);
-      if (idx !== -1) edgeFC.features.splice(idx, 1);
-    }
-
-    for (const [nid, edgeSet] of nodeEdgeIndex) {
-      for (const eid of connectedEdgeIds) edgeSet.delete(eid);
-    }
-
-    nodes.delete(nodeId);
-    nodeEdgeIndex.delete(nodeId);
-    nodeFeatMap.delete(nodeId);
-    const nIdx = nodeFC.features.findIndex((f) => f.properties.id === nodeId);
-    if (nIdx !== -1) nodeFC.features.splice(nIdx, 1);
-
-    const map = mapRef.current;
-    if (map) {
-      map.getSource(NODE_SOURCE)?.setData(nodeFC);
-      map.getSource(EDGE_SOURCE)?.setData(edgeFC);
-    }
+    deleteNodes([nodeId]);
     setContextMenu(null);
-    markDirty();
   };
 
   const getNodeLngLat = useCallback((nodeId) => {
@@ -540,8 +514,57 @@ export function useNetworkEditor(mapRef, networkData) {
     mapRef.current?.getSource(NODE_SOURCE)?.setData(nodeFC);
   }, [mapRef]);
 
+  const deleteNodes = useCallback((nodeIds) => {
+    const { nodes, edges, nodeEdgeIndex } = netRef.current;
+    const { nodeFeatMap, nodeFC, edgeFeatMap, edgeFC } = cacheRef.current;
+    if (!nodeFC || !edgeFC) return 0;
+
+    const removedNodes = new Set();
+    const removedEdges = new Set();
+    for (const nodeId of nodeIds) {
+      if (!nodes.has(nodeId)) continue;
+      removedNodes.add(nodeId);
+      for (const eid of nodeEdgeIndex.get(nodeId) ?? []) removedEdges.add(eid);
+    }
+    if (removedNodes.size === 0) return 0;
+
+    const touched = new Set();
+    for (const eid of removedEdges) {
+      const edge = edges.get(eid);
+      if (edge) {
+        for (const nid of edge.nodeIds) {
+          nodeEdgeIndex.get(nid)?.delete(eid);
+          if (!removedNodes.has(nid)) touched.add(nid);
+        }
+      }
+      edges.delete(eid);
+      edgeFeatMap.delete(eid);
+    }
+    // removing whole edges can orphan out-of-rectangle member nodes; drop them
+    // too, since exportToGeoJSON persists edges only and they would silently
+    // vanish on the next save/reload anyway
+    for (const nid of touched) {
+      if ((nodeEdgeIndex.get(nid)?.size ?? 0) === 0) removedNodes.add(nid);
+    }
+    for (const nodeId of removedNodes) {
+      nodes.delete(nodeId);
+      nodeEdgeIndex.delete(nodeId);
+      nodeFeatMap.delete(nodeId);
+    }
+    edgeFC.features = edgeFC.features.filter((f) => !removedEdges.has(f.properties.id));
+    nodeFC.features = nodeFC.features.filter((f) => !removedNodes.has(f.properties.id));
+
+    const map = mapRef.current;
+    if (map) {
+      map.getSource(NODE_SOURCE)?.setData(nodeFC);
+      map.getSource(EDGE_SOURCE)?.setData(edgeFC);
+    }
+    markDirty();
+    return removedNodes.size;
+  }, [mapRef]);
+
   return {
-    contextMenu, setContextMenu, splitEdge, deleteNode, saveNetwork, dirty, saving,
+    contextMenu, setContextMenu, splitEdge, deleteNode, deleteNodes, saveNetwork, dirty, saving,
     addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat,
   };
 }

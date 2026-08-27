@@ -144,6 +144,7 @@ export default function App() {
   const [editedSuggestions, setEditedSuggestions] = useState(new Map());
   const [isDrawing,         setIsDrawing]         = useState(false);
   const [isDrawingEdges,    setIsDrawingEdges]    = useState(false);
+  const [isDeletingNodes,   setIsDeletingNodes]   = useState(false);
 
   const resolveFeature = useCallback((key) => {
     if (editedSuggestions.has(key)) return editedSuggestions.get(key);
@@ -267,10 +268,13 @@ export default function App() {
         selectedTiles={tileSelector.selectedTiles}
         previewTiles={tileSelector.previewTiles}
         isDrawing={isDrawing}
-        onToggleDraw={() => { setIsDrawing((v) => !v); setIsDrawingEdges(false); }}
+        onToggleDraw={() => { setIsDrawing((v) => !v); setIsDrawingEdges(false); setIsDeletingNodes(false); }}
         isDrawingEdges={isDrawingEdges}
-        onToggleDrawEdges={() => { setIsDrawingEdges((v) => !v); setIsDrawing(false); }}
+        onToggleDrawEdges={() => { setIsDrawingEdges((v) => !v); setIsDrawing(false); setIsDeletingNodes(false); }}
         onCancelDrawEdges={() => setIsDrawingEdges(false)}
+        isDeletingNodes={isDeletingNodes}
+        onToggleDeleteNodes={() => { setIsDeletingNodes((v) => !v); setIsDrawing(false); setIsDrawingEdges(false); }}
+        onCancelDeleteNodes={() => setIsDeletingNodes(false)}
       >
         {({ bounds, mapZoom, flyToTile, fitToTile, networkData, mapRef, reloadNetwork, dirty, saving, handleSave }) => {
           reloadNetworkRef.current = reloadNetwork;

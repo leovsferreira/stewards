@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isDrawingEdgesRef, isDeletingNodesRef } from "./drawingState";
 
 const HANDLE_SOURCE = "sugg-edit-handles-source";
 const VERT_LAYER    = "sugg-edit-vertex-layer";
@@ -115,6 +116,7 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
       });
 
       h.mousedown = (e) => {
+        if (isDrawingEdgesRef.current || isDeletingNodesRef.current) return;
         if (e.originalEvent?.button !== 0) return;
         if (!e.features?.length) return;
         const { kind, idx, featureKey } = e.features[0].properties;
@@ -163,8 +165,14 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
         onCommitRef.current?.(featureKey, updated);
       };
 
-      h.enterHandle = () => { if (!dragRef.current) map.getCanvas().style.cursor = "grab"; };
-      h.leaveHandle = () => { if (!dragRef.current) map.getCanvas().style.cursor = ""; };
+      h.enterHandle = () => {
+        if (isDrawingEdgesRef.current || isDeletingNodesRef.current) return;
+        if (!dragRef.current) map.getCanvas().style.cursor = "grab";
+      };
+      h.leaveHandle = () => {
+        if (isDrawingEdgesRef.current || isDeletingNodesRef.current) return;
+        if (!dragRef.current) map.getCanvas().style.cursor = "";
+      };
 
       map.on("mousedown",  VERT_LAYER, h.mousedown);
       map.on("mousedown",  EDGE_LAYER, h.mousedown);
