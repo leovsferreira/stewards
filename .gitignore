@@ -27,3 +27,4 @@ dist-ssr
 backend/stewards_files/
 backend/__pycache__/
 .claude/
+network_edited_*.geojson

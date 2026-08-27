@@ -4,6 +4,30 @@ import fs from "node:fs";
 import path from "node:path";
 
 function saveNetworkPlugin(publicDir) {
+  const dirAbs = () => path.resolve(process.cwd(), publicDir);
+
+  // network.geojson is the original (also rewritten by the inference pipeline);
+  // manual saves become network_edited_* files. The app loads whichever is newest.
+  const latestNetworkPath = () => {
+    const dir = dirAbs();
+    const candidates = fs.readdirSync(dir)
+      .filter((f) => f === "network.geojson" || /^network_edited_\d{8}_\d{6}_\d{3}\.geojson$/.test(f))
+      .flatMap((f) => {
+        const p = path.join(dir, f);
+        try { return [{ p, mtime: fs.statSync(p).mtimeMs }]; }
+        catch { return []; } // file vanished between readdir and stat
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    return candidates[0]?.p ?? null;
+  };
+
+  const editedFileName = () => {
+    const d = new Date();
+    const pad = (n, w = 2) => String(n).padStart(w, "0");
+    return `network_edited_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+      `_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}_${pad(d.getMilliseconds(), 3)}.geojson`;
+  };
+
   return {
     name: "save-network",
     configureServer(server) {
@@ -21,17 +45,39 @@ function saveNetworkPlugin(publicDir) {
               return;
             }
 
-            const outPath = path.resolve(publicDir, "network.geojson");
+            const fileName = editedFileName();
+            const outPath = path.join(dirAbs(), fileName);
             fs.writeFileSync(outPath, JSON.stringify(geojson), "utf-8");
 
             res.setHeader("Content-Type", "application/json");
-            res.end(JSON.stringify({ ok: true, features: geojson.features.length }));
+            res.end(JSON.stringify({ ok: true, features: geojson.features.length, file: fileName }));
           } catch (err) {
             console.error("Save network error:", err);
             res.statusCode = 500;
             res.end(String(err));
           }
         });
+      });
+
+      server.middlewares.use("/api/latest-network", (req, res, next) => {
+        if (req.method !== "GET") return next();
+        try {
+          const p = latestNetworkPath();
+          if (!p) {
+            res.statusCode = 404;
+            res.end("No network file found");
+            return;
+          }
+          const data = fs.readFileSync(p);
+          res.setHeader("Content-Type", "application/json");
+          res.setHeader("Cache-Control", "no-store");
+          res.setHeader("X-Network-File", path.basename(p));
+          res.end(data);
+        } catch (err) {
+          console.error("Latest network error:", err);
+          res.statusCode = 500;
+          res.end(String(err));
+        }
       });
     },
   };

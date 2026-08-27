@@ -7,11 +7,11 @@ export function useNetworkData() {
   const [data, setData] = useState(cachedData);
 
   const load = useCallback(() => {
-    const url = `/network.geojson?t=${Date.now()}`;
+    const url = `/api/latest-network?t=${Date.now()}`;
 
     loadingPromise = fetch(url)
       .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch network.geojson: ${res.status}`);
+        if (!res.ok) throw new Error(`Failed to fetch latest network: ${res.status}`);
         return res.json();
       })
       .then((fc) => {

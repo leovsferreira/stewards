@@ -156,8 +156,9 @@ export function useNetworkEditor(mapRef, networkData) {
         const text = await res.text();
         throw new Error(`Save failed (${res.status}): ${text}`);
       }
+      const { file } = await res.json().catch(() => ({}));
       setDirty(false);
-      console.log("Network saved successfully");
+      console.log(`Network saved successfully${file ? ` as ${file}` : ""}`);
       return true;
     } catch (err) {
       console.error("Failed to save network:", err);
