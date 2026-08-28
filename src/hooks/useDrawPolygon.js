@@ -5,14 +5,16 @@ const DRAW_SOURCE = "draw-poly-source";
 const DRAW_LINE   = "draw-poly-line";
 const DRAW_VERTS  = "draw-poly-verts";
 
-export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
+export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel, brushActive) {
   const ringRef      = useRef([]);
   const cursorRef    = useRef(null);
   const addedRef     = useRef(false);
   const onCompleteRef = useRef(onComplete);
   const onCancelRef   = useRef(onCancel);
+  const brushRef      = useRef(brushActive);
   onCompleteRef.current = onComplete;
   onCancelRef.current   = onCancel;
+  brushRef.current      = brushActive;
 
   useEffect(() => {
     isDrawingRef.current = isDrawing;
@@ -83,6 +85,7 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
 
 
     h.click = (e) => {
+      if (brushRef.current) return; // shift-brush owns shift-clicks
       if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; return; }
 
       clickTimer = setTimeout(() => {
@@ -104,6 +107,7 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
 
     h.dblclick = (e) => {
       e.preventDefault();
+      if (brushRef.current) return;
       if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
       finish();
     };
@@ -169,7 +173,8 @@ export function useDrawPolygon(mapRef, isDrawing, onComplete, onCancel) {
         m.off("dblclick",  h.dblclick);
         m.off("mousemove", h.mousemove);
         if (addedRef.current) {
-          m.getCanvas().style.cursor = "";
+          // the shift-brush also uses a crosshair; don't wipe it if it's active
+          m.getCanvas().style.cursor = brushRef.current ? "crosshair" : "";
           try {
             if (m.getLayer(DRAW_VERTS))  m.removeLayer(DRAW_VERTS);
             if (m.getLayer(DRAW_LINE))   m.removeLayer(DRAW_LINE);

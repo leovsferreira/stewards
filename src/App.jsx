@@ -391,7 +391,7 @@ export default function App() {
             setIsDrawing(false);
           }, [focusTile, focusTileSuggestions, editedSuggestions]);
 
-          useDrawPolygon(mapRef, isDrawing, handlePolygonComplete, () => setIsDrawing(false));
+          useDrawPolygon(mapRef, isDrawing, handlePolygonComplete, () => setIsDrawing(false), tileSelector.brushActive);
 
           const microSuggestions = useMemo(() => {
             if (!focusTile) return [];

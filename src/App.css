@@ -788,12 +788,12 @@ html, body, #root {
 }
 
 .drawPolygonBtn.active {
-  background: #f0fdf4;
-  color: #16a34a;
+  background: #16a34a;
+  color: #fff;
 }
 
 .drawPolygonBtn.active:hover {
-  background: #dcfce7;
+  background: #15803d;
 }
 
 .drawEdgeBtn {
@@ -826,12 +826,12 @@ html, body, #root {
 }
 
 .drawEdgeBtn.active {
-  background: #fff7ed;
-  color: #ea580c;
+  background: #ea580c;
+  color: #fff;
 }
 
 .drawEdgeBtn.active:hover {
-  background: #ffedd5;
+  background: #c2410c;
 }
 
 .deleteNodesBtn {
@@ -864,12 +864,12 @@ html, body, #root {
 }
 
 .deleteNodesBtn.active {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: #dc2626;
+  color: #fff;
 }
 
 .deleteNodesBtn.active:hover {
-  background: #fee2e2;
+  background: #b91c1c;
 }
 
 .historyBtn {

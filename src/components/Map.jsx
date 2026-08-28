@@ -179,23 +179,40 @@ export function MapView({
   const applyHistoryRef = useRef(applyHistory);
   applyHistoryRef.current = applyHistory;
 
+  const togglesRef = useRef({});
+  togglesRef.current = {
+    draw: onToggleDraw,
+    drawEdges: onToggleDrawEdges,
+    deleteNodes: onToggleDeleteNodes,
+  };
+
   useEffect(() => {
     const onKey = (e) => {
       if (!isMicroRef.current) return;
-      if (isGestureActiveRef.current) return;
-      if (savingRef.current) return;
       const t = e.target;
       if (t instanceof HTMLElement &&
           (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      if (!e.ctrlKey && !e.metaKey) return;
       const k = e.key.toLowerCase();
-      if (k === "z" && !e.shiftKey) {
-        e.preventDefault();
-        applyHistoryRef.current(undoHistory);
-      } else if (k === "y" || (k === "z" && e.shiftKey)) {
-        e.preventDefault();
-        applyHistoryRef.current(redoHistory);
+
+      if (e.ctrlKey || e.metaKey) {
+        if (isGestureActiveRef.current || savingRef.current) return;
+        if (k === "z" && !e.shiftKey) {
+          e.preventDefault();
+          applyHistoryRef.current(undoHistory);
+        } else if (k === "y" || (k === "z" && e.shiftKey)) {
+          e.preventDefault();
+          applyHistoryRef.current(redoHistory);
+        }
+        return;
       }
+
+      // plain-letter mode toggles: p = draw polygon, l = draw edges,
+      // d = delete nodes in an area (shift is the tile-brush modifier)
+      if (e.altKey || e.shiftKey || e.repeat) return;
+      if (isGestureActiveRef.current) return;
+      if (k === "p")      togglesRef.current.draw?.();
+      else if (k === "l") togglesRef.current.drawEdges?.();
+      else if (k === "d") togglesRef.current.deleteNodes?.();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -263,7 +280,7 @@ export function MapView({
           <button
             className={`drawPolygonBtn${isDrawing ? " active" : ""}`}
             onClick={onToggleDraw}
-            title={isDrawing ? "Cancel drawing (Esc)" : "Draw polygon"}
+            title={isDrawing ? "Cancel drawing (Esc)" : "Draw polygon (P)"}
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
               stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
@@ -282,7 +299,7 @@ export function MapView({
           <button
             className={`drawEdgeBtn${isDrawingEdges ? " active" : ""}`}
             onClick={onToggleDrawEdges}
-            title={isDrawingEdges ? "Cancel edge drawing (Esc)" : "Draw edges"}
+            title={isDrawingEdges ? "Cancel edge drawing (Esc)" : "Draw edges (L)"}
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
               stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
@@ -298,7 +315,7 @@ export function MapView({
           <button
             className={`deleteNodesBtn${isDeletingNodes ? " active" : ""}`}
             onClick={onToggleDeleteNodes}
-            title={isDeletingNodes ? "Cancel node deletion (Esc)" : "Delete nodes in an area"}
+            title={isDeletingNodes ? "Cancel node deletion (Esc)" : "Delete nodes in an area (D)"}
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
               stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
