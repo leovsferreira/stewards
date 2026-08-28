@@ -35,6 +35,7 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
 
     const h = {};
     let pendingClick = null;
+    let pendingCreated = []; // nodes created since the last committed segment
 
     const sync = () => {
       const src = map.getSource(DRAW_SOURCE);
@@ -65,10 +66,21 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
         : [];
       let nodeId = hits[0]?.properties?.id ?? null;
 
+      // snapping onto a still-unconnected node this session created (a chain
+      // start abandoned by a double-click) adopts it into the next segment's
+      // history entry, so undoing that segment removes it too
+      if (nodeId != null &&
+          chainNodesRef.current.includes(nodeId) &&
+          !pendingCreated.includes(nodeId) &&
+          (ed.getNodeDegree?.(nodeId) ?? 0) === 0) {
+        pendingCreated.push(nodeId);
+      }
+
       if (nodeId == null) {
         nodeId = ed.addDrawnNode(lngLat[0], lngLat[1]);
         if (nodeId == null) return;
         chainNodesRef.current.push(nodeId);
+        pendingCreated.push(nodeId);
       }
 
       // the previous node may have been deleted or replaced by a network
@@ -76,7 +88,10 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
       let prev = prevNodeRef.current;
       if (prev && ed.getNodeLngLat(prev) == null) prev = null;
 
-      if (prev && prev !== nodeId) ed.addDrawnEdge(prev, nodeId);
+      if (prev && prev !== nodeId) {
+        const edgeId = ed.addDrawnEdge(prev, nodeId, pendingCreated);
+        if (edgeId != null) pendingCreated = [];
+      }
       prevNodeRef.current = nodeId;
       sync();
     };
@@ -123,6 +138,7 @@ export function useDrawEdges(mapRef, isDrawing, editor, onCancel, networkData, b
         for (const c of rest) commitClick(c.lngLat);
       }
       prevNodeRef.current = null;
+      pendingCreated = []; // a leftover chain-start node is orphan-cleaned on mode end
       sync();
     };
 

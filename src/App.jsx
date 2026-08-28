@@ -9,6 +9,7 @@ import { useSuggestionLayer } from "./hooks/useSuggestionLayer";
 import { useSelectedSuggestionsLayer } from "./hooks/useSelectedSuggestionsLayer";
 import { useSuggestionEditor } from "./hooks/useSuggestionEditor";
 import { useDrawPolygon } from "./hooks/useDrawPolygon";
+import { pushHistory, clearSuggestionHistory } from "./hooks/history";
 import { useTileSelector } from "./hooks/useTileSelector";
 import { useTileSelectorLayer } from "./hooks/useTileSelectorLayer";
 import { TileRow } from "./components/TileRow";
@@ -172,6 +173,12 @@ export default function App() {
 
   const reloadNetworkRef = useRef(null);
 
+  const editedSuggestionsRef = useRef(editedSuggestions);
+  editedSuggestionsRef.current = editedSuggestions;
+
+  const selectedKeysRef = useRef(selectedKeys);
+  selectedKeysRef.current = selectedKeys;
+
   const handleInferenceDone = useCallback(() => {
     reloadNetworkRef.current?.();
     reloadSuggestions();
@@ -208,6 +215,9 @@ export default function App() {
       setTrainingJobId(job_id);
       setSelectedKeys(new Set());
       setEditedSuggestions(new Map());
+      // submitted suggestions are cleared, so their deltas are stale; network
+      // deltas stay valid (no id regeneration), so keep them undoable
+      clearSuggestionHistory();
     } catch (err) {
       setTrainingPhase("error");
       setTrainingMessage(err.message);
@@ -322,6 +332,23 @@ export default function App() {
           useSelectedSuggestionsLayer(mapRef, selectedFeatures, viewLevel);
 
           const handleEditCommit = useCallback((key, updatedFeature) => {
+            const hadBefore = editedSuggestionsRef.current.has(key);
+            const before = editedSuggestionsRef.current.get(key);
+            const g = updatedFeature.geometry;
+            const ring = g?.type === "Polygon" ? g.coordinates[0]
+              : g?.type === "MultiPolygon" ? g.coordinates[0]?.[0]
+              : null;
+            pushHistory({
+              kind: "suggestion",
+              at: ring?.[0],
+              undo: () => setEditedSuggestions((p) => {
+                const n = new Map(p);
+                if (hadBefore) n.set(key, before);
+                else n.delete(key);
+                return n;
+              }),
+              redo: () => setEditedSuggestions((p) => new Map(p).set(key, updatedFeature)),
+            });
             setEditedSuggestions((prev) => new Map(prev).set(key, updatedFeature));
           }, []);
 
@@ -345,6 +372,20 @@ export default function App() {
               geometry: { type: "Polygon", coordinates: [closedRing] },
               properties: { tile_id: tileId, n_suggestion: nextN },
             };
+            let wasSelected = true; // captured at undo time: the user may deselect it first
+            pushHistory({
+              kind: "suggestion",
+              at: closedRing[0],
+              undo: () => {
+                wasSelected = selectedKeysRef.current.has(newKey);
+                setEditedSuggestions((p) => { const n = new Map(p); n.delete(newKey); return n; });
+                setSelectedKeys((p) => { const n = new Set(p); n.delete(newKey); return n; });
+              },
+              redo: () => {
+                setEditedSuggestions((p) => new Map(p).set(newKey, newFeature));
+                if (wasSelected) setSelectedKeys((p) => new Set(p).add(newKey));
+              },
+            });
             setEditedSuggestions((prev) => new Map(prev).set(newKey, newFeature));
             setSelectedKeys((prev) => new Set(prev).add(newKey));
             setIsDrawing(false);

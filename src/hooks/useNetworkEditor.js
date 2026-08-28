@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { isDrawingEdgesRef, isDeletingNodesRef } from "./drawingState";
+import { isDrawingEdgesRef, isDeletingNodesRef, isGestureActiveRef } from "./drawingState";
+import { pushHistory, clearNetworkHistory, hasNetworkEdits } from "./history";
 
 const EDGE_SOURCE = "editor-edges-source";
 const EDGE_LAYER  = "editor-edges-layer";
@@ -129,6 +130,7 @@ export function useNetworkEditor(mapRef, networkData) {
     const cache = buildCaches(net);
     netRef.current = net;
     cacheRef.current = cache;
+    clearNetworkHistory(); // node ids regenerate here, so network deltas are stale
     setDirty(false);
     if (map && addedRef.current) {
       map.getSource(EDGE_SOURCE)?.setData(cache.edgeFC);
@@ -142,6 +144,96 @@ export function useNetworkEditor(mapRef, networkData) {
   }, [networkData, mapRef]);
 
   const markDirty = () => setDirty(true);
+
+  // ── low-level mutation records shared by undo/redo appliers ──
+  // They touch only netRef maps and the feature maps; commitRecords() rebuilds
+  // the FC arrays once per batch and repaints, so bulk undo/redo stays O(n).
+
+  function syncSources() {
+    const map = mapRef.current;
+    if (map) {
+      map.getSource(NODE_SOURCE)?.setData(cacheRef.current.nodeFC);
+      map.getSource(EDGE_SOURCE)?.setData(cacheRef.current.edgeFC);
+    }
+  }
+
+  function commitRecords() {
+    const { nodeFeatMap, edgeFeatMap, nodeFC, edgeFC } = cacheRef.current;
+    if (nodeFC) nodeFC.features = [...nodeFeatMap.values()];
+    if (edgeFC) edgeFC.features = [...edgeFeatMap.values()];
+    syncSources();
+  }
+
+  function syncDirtyFromHistory() {
+    setDirty(hasNetworkEdits());
+  }
+
+  function setNodePosition(nodeId, lng, lat) {
+    const { nodes, edges, nodeEdgeIndex } = netRef.current;
+    const { nodeFeatMap, edgeFeatMap } = cacheRef.current;
+    const node = nodes.get(nodeId);
+    if (!node) return;
+    node.lng = lng;
+    node.lat = lat;
+    const feat = nodeFeatMap.get(nodeId);
+    if (feat) feat.geometry.coordinates = [lng, lat];
+    for (const eid of nodeEdgeIndex.get(nodeId) ?? []) {
+      const edge = edges.get(eid);
+      const ef = edgeFeatMap.get(eid);
+      if (!edge || !ef) continue;
+      ef.geometry.coordinates = edge.nodeIds
+        .map((id) => nodes.get(id))
+        .filter(Boolean)
+        .map((n) => [n.lng, n.lat]);
+    }
+  }
+
+  function addNodeRecord({ id, lng, lat }) {
+    const { nodes, nodeEdgeIndex } = netRef.current;
+    const { nodeFeatMap } = cacheRef.current;
+    if (nodes.has(id)) return;
+    nodes.set(id, { id, lng, lat });
+    if (!nodeEdgeIndex.has(id)) nodeEdgeIndex.set(id, new Set());
+    nodeFeatMap.set(id, {
+      type: "Feature",
+      properties: { id },
+      geometry: { type: "Point", coordinates: [lng, lat] },
+    });
+  }
+
+  function removeNodeRecord(id) {
+    const { nodes, nodeEdgeIndex } = netRef.current;
+    const { nodeFeatMap } = cacheRef.current;
+    nodes.delete(id);
+    nodeEdgeIndex.delete(id);
+    nodeFeatMap.delete(id);
+  }
+
+  function addEdgeRecord({ id, nodeIds }) {
+    const { nodes, edges, nodeEdgeIndex } = netRef.current;
+    const { edgeFeatMap } = cacheRef.current;
+    if (edges.has(id)) return;
+    edges.set(id, { id, nodeIds: [...nodeIds] });
+    for (const nid of nodeIds) {
+      if (!nodeEdgeIndex.has(nid)) nodeEdgeIndex.set(nid, new Set());
+      nodeEdgeIndex.get(nid).add(id);
+    }
+    const coords = nodeIds.map((nid) => nodes.get(nid)).filter(Boolean).map((n) => [n.lng, n.lat]);
+    edgeFeatMap.set(id, {
+      type: "Feature",
+      properties: { id },
+      geometry: { type: "LineString", coordinates: coords },
+    });
+  }
+
+  function removeEdgeRecord(id) {
+    const { edges, nodeEdgeIndex } = netRef.current;
+    const { edgeFeatMap } = cacheRef.current;
+    const edge = edges.get(id);
+    if (edge) for (const nid of edge.nodeIds) nodeEdgeIndex.get(nid)?.delete(id);
+    edges.delete(id);
+    edgeFeatMap.delete(id);
+  }
 
   const saveNetwork = useCallback(async () => {
     const geojson = exportToGeoJSON(netRef.current);
@@ -158,6 +250,10 @@ export function useNetworkEditor(mapRef, networkData) {
       }
       const { file } = await res.json().catch(() => ({}));
       setDirty(false);
+      // the saved state is the new baseline; network history would be cleared
+      // by the follow-up reload's rebuild anyway, but clearing now closes the
+      // window where an undo would be silently reverted by that reload
+      clearNetworkHistory();
       console.log(`Network saved successfully${file ? ` as ${file}` : ""}`);
       return true;
     } catch (err) {
@@ -212,6 +308,7 @@ export function useNetworkEditor(mapRef, networkData) {
       const n = netRef.current.nodes.get(nodeId);
       if (!n) return;
       draggingRef.current = { nodeId, origLng: n.lng, origLat: n.lat };
+      isGestureActiveRef.current = true;
       map.dragPan.disable();
       map.getCanvas().style.cursor = "grabbing";
       map.setFeatureState({ source: NODE_SOURCE, id: nodeId }, { dragging: true, hover: false });
@@ -262,11 +359,25 @@ export function useNetworkEditor(mapRef, networkData) {
         const newFeat = { type: "Feature", properties: { id: newEId }, geometry: { type: "LineString", coordinates: coords } };
         cacheRef.current.edgeFeatMap.set(newEId, newFeat);
         cacheRef.current.edgeFC.features.push(newFeat);
+
+        pushHistory({
+          kind: "network",
+          at: [origLng, origLat],
+          undo: () => { removeEdgeRecord(newEId); commitRecords(); syncDirtyFromHistory(); },
+          redo: () => { addEdgeRecord({ id: newEId, nodeIds: [fromId, toId] }); commitRecords(); syncDirtyFromHistory(); },
+        });
       }
 
       const { nodeId: dragId, origLng, origLat } = draggingRef.current;
       const draggedNode = netRef.current.nodes.get(dragId);
       if (draggedNode && (draggedNode.lng !== origLng || draggedNode.lat !== origLat)) {
+        const to = [draggedNode.lng, draggedNode.lat];
+        pushHistory({
+          kind: "network",
+          at: to,
+          undo: () => { setNodePosition(dragId, origLng, origLat); syncSources(); syncDirtyFromHistory(); },
+          redo: () => { setNodePosition(dragId, to[0], to[1]); syncSources(); syncDirtyFromHistory(); },
+        });
         markDirty();
       }
       if (target) markDirty();
@@ -274,6 +385,7 @@ export function useNetworkEditor(mapRef, networkData) {
       map.getSource(NODE_SOURCE)?.setData(cacheRef.current.nodeFC);
       map.getSource(EDGE_SOURCE)?.setData(cacheRef.current.edgeFC);
       draggingRef.current = null;
+      isGestureActiveRef.current = false;
     };
 
     const onEdgeContextMenu = (e) => {
@@ -369,7 +481,7 @@ export function useNetworkEditor(mapRef, networkData) {
 
     return () => {
       cancelled = true;
-      draggingRef.current = null;
+      if (draggingRef.current) { draggingRef.current = null; isGestureActiveRef.current = false; }
       map.off("load", init);
       map.off("mousedown",   NODE_LAYER, onNodeMouseDown);
       map.off("mousemove",              onMouseMove);
@@ -393,7 +505,7 @@ export function useNetworkEditor(mapRef, networkData) {
     const { nodes, edges, nodeEdgeIndex } = netRef.current;
     const { edgeFeatMap, edgeFC, nodeFeatMap, nodeFC } = cacheRef.current;
     const edge = edges.get(edgeId);
-    if (!edge) return;
+    if (!edge) { setContextMenu(null); return; }
 
     const idx = closestSegmentIdx(edge.nodeIds, nodes, lng, lat);
     const ts = Date.now();
@@ -436,6 +548,32 @@ export function useNetworkEditor(mapRef, networkData) {
       map.getSource(NODE_SOURCE)?.setData(nodeFC);
       map.getSource(EDGE_SOURCE)?.setData(edgeFC);
     }
+
+    const removedEdge = { id: edgeId, nodeIds: [...edge.nodeIds] };
+    const addedNode = { id: newNodeId, lng, lat };
+    const addedA = { id: eA.id, nodeIds: [...eA.nodeIds] };
+    const addedB = { id: eB.id, nodeIds: [...eB.nodeIds] };
+    pushHistory({
+      kind: "network",
+      at: [lng, lat],
+      undo: () => {
+        removeEdgeRecord(addedA.id);
+        removeEdgeRecord(addedB.id);
+        removeNodeRecord(addedNode.id);
+        addEdgeRecord(removedEdge);
+        commitRecords();
+        syncDirtyFromHistory();
+      },
+      redo: () => {
+        removeEdgeRecord(removedEdge.id);
+        addNodeRecord(addedNode);
+        addEdgeRecord(addedA);
+        addEdgeRecord(addedB);
+        commitRecords();
+        syncDirtyFromHistory();
+      },
+    });
+
     setContextMenu(null);
     markDirty();
   };
@@ -448,6 +586,10 @@ export function useNetworkEditor(mapRef, networkData) {
   const getNodeLngLat = useCallback((nodeId) => {
     const n = netRef.current.nodes.get(nodeId);
     return n ? [n.lng, n.lat] : null;
+  }, []);
+
+  const getNodeDegree = useCallback((nodeId) => {
+    return netRef.current.nodeEdgeIndex.get(nodeId)?.size ?? 0;
   }, []);
 
   const addDrawnNode = useCallback((lng, lat) => {
@@ -466,7 +608,7 @@ export function useNetworkEditor(mapRef, networkData) {
     return id;
   }, [mapRef]);
 
-  const addDrawnEdge = useCallback((fromId, toId) => {
+  const addDrawnEdge = useCallback((fromId, toId, createdNodeIds = []) => {
     if (!fromId || !toId || fromId === toId) return null;
     const { nodes, edges, nodeEdgeIndex } = netRef.current;
     const { edgeFeatMap, edgeFC } = cacheRef.current;
@@ -496,6 +638,33 @@ export function useNetworkEditor(mapRef, networkData) {
     edgeFeatMap.set(id, f);
     edgeFC.features.push(f);
     mapRef.current?.getSource(EDGE_SOURCE)?.setData(edgeFC);
+
+    // one history step per drawn segment: the edge plus any nodes the drawing
+    // hook created for it
+    const createdNodes = createdNodeIds
+      .map((nid) => nodes.get(nid))
+      .filter(Boolean)
+      .map((n) => ({ id: n.id, lng: n.lng, lat: n.lat }));
+    const edgeData = { id, nodeIds: [fromId, toId] };
+    pushHistory({
+      kind: "network",
+      at: [from.lng, from.lat],
+      undo: () => {
+        removeEdgeRecord(edgeData.id);
+        for (const n of createdNodes) {
+          if ((netRef.current.nodeEdgeIndex.get(n.id)?.size ?? 0) === 0) removeNodeRecord(n.id);
+        }
+        commitRecords();
+        syncDirtyFromHistory();
+      },
+      redo: () => {
+        for (const n of createdNodes) addNodeRecord(n);
+        addEdgeRecord(edgeData);
+        commitRecords();
+        syncDirtyFromHistory();
+      },
+    });
+
     markDirty();
     return id;
   }, [mapRef]);
@@ -528,23 +697,29 @@ export function useNetworkEditor(mapRef, networkData) {
     }
     if (removedNodes.size === 0) return 0;
 
-    const touched = new Set();
+    // removing whole edges can orphan out-of-rectangle member nodes; fold them
+    // in too, since exportToGeoJSON persists edges only and they would silently
+    // vanish on the next save/reload anyway
+    for (const eid of removedEdges) {
+      for (const nid of edges.get(eid)?.nodeIds ?? []) {
+        if (removedNodes.has(nid)) continue;
+        const set = nodeEdgeIndex.get(nid);
+        if (set && [...set].every((other) => removedEdges.has(other))) removedNodes.add(nid);
+      }
+    }
+
+    // capture everything before mutating, for undo
+    const nodesData = [...removedNodes].map((id) => {
+      const n = nodes.get(id);
+      return { id, lng: n.lng, lat: n.lat };
+    });
+    const edgesData = [...removedEdges].map((id) => ({ id, nodeIds: [...edges.get(id).nodeIds] }));
+
     for (const eid of removedEdges) {
       const edge = edges.get(eid);
-      if (edge) {
-        for (const nid of edge.nodeIds) {
-          nodeEdgeIndex.get(nid)?.delete(eid);
-          if (!removedNodes.has(nid)) touched.add(nid);
-        }
-      }
+      if (edge) for (const nid of edge.nodeIds) nodeEdgeIndex.get(nid)?.delete(eid);
       edges.delete(eid);
       edgeFeatMap.delete(eid);
-    }
-    // removing whole edges can orphan out-of-rectangle member nodes; drop them
-    // too, since exportToGeoJSON persists edges only and they would silently
-    // vanish on the next save/reload anyway
-    for (const nid of touched) {
-      if ((nodeEdgeIndex.get(nid)?.size ?? 0) === 0) removedNodes.add(nid);
     }
     for (const nodeId of removedNodes) {
       nodes.delete(nodeId);
@@ -559,12 +734,30 @@ export function useNetworkEditor(mapRef, networkData) {
       map.getSource(NODE_SOURCE)?.setData(nodeFC);
       map.getSource(EDGE_SOURCE)?.setData(edgeFC);
     }
+
+    pushHistory({
+      kind: "network",
+      at: [nodesData[0].lng, nodesData[0].lat],
+      undo: () => {
+        for (const n of nodesData) addNodeRecord(n);
+        for (const ed of edgesData) addEdgeRecord(ed);
+        commitRecords();
+        syncDirtyFromHistory();
+      },
+      redo: () => {
+        for (const ed of edgesData) removeEdgeRecord(ed.id);
+        for (const n of nodesData) removeNodeRecord(n.id);
+        commitRecords();
+        syncDirtyFromHistory();
+      },
+    });
+
     markDirty();
     return removedNodes.size;
   }, [mapRef]);
 
   return {
     contextMenu, setContextMenu, splitEdge, deleteNode, deleteNodes, saveNetwork, dirty, saving,
-    addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat,
+    addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat, getNodeDegree,
   };
 }

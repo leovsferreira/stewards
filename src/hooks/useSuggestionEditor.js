@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { isDrawingEdgesRef, isDeletingNodesRef } from "./drawingState";
+import { isDrawingEdgesRef, isDeletingNodesRef, isGestureActiveRef } from "./drawingState";
 
 const HANDLE_SOURCE = "sugg-edit-handles-source";
 const VERT_LAYER    = "sugg-edit-vertex-layer";
@@ -131,12 +131,15 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
           startLng: e.lngLat.lng,
           startLat: e.lngLat.lat,
           origRing: ring.map((pt) => [...pt]),
+          moved: false,
         };
+        isGestureActiveRef.current = true;
         map.getCanvas().style.cursor = "grabbing";
       };
 
       h.mousemove = (e) => {
         if (!dragRef.current) return;
+        dragRef.current.moved = true;
         const { featureKey } = dragRef.current;
         const feature = featuresMapRef.current?.get(featureKey);
         if (!feature) return;
@@ -155,14 +158,18 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
 
       h.mouseup = (e) => {
         if (!dragRef.current) return;
-        const { featureKey } = dragRef.current;
-        const feature = featuresMapRef.current?.get(featureKey);
-        if (!feature) { dragRef.current = null; return; }
-        const updated = applyDrag(feature, dragRef.current, e.lngLat);
+        const drag = dragRef.current;
         dragRef.current = null;
+        isGestureActiveRef.current = false;
         map.dragPan.enable();
         map.getCanvas().style.cursor = "";
-        onCommitRef.current?.(featureKey, updated);
+        const feature = featuresMapRef.current?.get(drag.featureKey);
+        if (!feature) return;
+        // a plain click on a handle is not an edit: committing it would push a
+        // no-op history entry and wipe the redo stack
+        if (!drag.moved) return;
+        const updated = applyDrag(feature, drag, e.lngLat);
+        onCommitRef.current?.(drag.featureKey, updated);
       };
 
       h.enterHandle = () => {
@@ -193,6 +200,7 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
       const m = mapRef.current;
       if (dragRef.current) {
         dragRef.current = null;
+        isGestureActiveRef.current = false;
         m?.dragPan.enable();
         if (m?.getCanvas) m.getCanvas().style.cursor = "";
       }
@@ -223,6 +231,7 @@ export function useSuggestionEditor(mapRef, editingFeaturesMap, onCommit) {
     if (!map) return;
     if (dragRef.current && !editingFeaturesMap?.has(dragRef.current.featureKey)) {
       dragRef.current = null;
+      isGestureActiveRef.current = false;
       map.dragPan.enable();
       map.getCanvas().style.cursor = "";
     }

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { isDeletingNodesRef } from "./drawingState";
+import { isDeletingNodesRef, isGestureActiveRef } from "./drawingState";
 import { NODE_LAYER } from "./useNetworkEditor";
 
 const RECT_SOURCE = "delete-rect-source";
@@ -52,6 +52,7 @@ export function useDeleteNodes(mapRef, isActive, editor, onCancel, brushActive) 
 
     const endDrag = () => {
       dragStart = null;
+      isGestureActiveRef.current = false;
       map.dragPan.enable();
       map.getSource(RECT_SOURCE)?.setData({ type: "FeatureCollection", features: [] });
     };
@@ -86,6 +87,7 @@ export function useDeleteNodes(mapRef, isActive, editor, onCancel, brushActive) 
       if (e.originalEvent?.button !== 0) return;
       e.preventDefault();
       dragStart = e.lngLat;
+      isGestureActiveRef.current = true;
       map.dragPan.disable();
     };
 
@@ -158,6 +160,7 @@ export function useDeleteNodes(mapRef, isActive, editor, onCancel, brushActive) 
     else map.once("idle", ensureLayers);
 
     return () => {
+      if (dragStart) isGestureActiveRef.current = false;
       const m = mapRef.current;
       if (m) {
         m.off("idle",      ensureLayers);

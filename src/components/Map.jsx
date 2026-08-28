@@ -4,6 +4,8 @@ import { useHeatmap } from "../hooks/useHeatmap";
 import { useNetworkEditor } from "../hooks/useNetworkEditor";
 import { useDrawEdges } from "../hooks/useDrawEdges";
 import { useDeleteNodes } from "../hooks/useDeleteNodes";
+import { undoHistory, redoHistory, useHistorySnapshot } from "../hooks/history";
+import { isGestureActiveRef } from "../hooks/drawingState";
 import { useNetworkData } from "../hooks/useNetworkData";
 import { useStreetView } from "../hooks/useStreetView";
 import { NetworkEditorMenu } from "./NetworkEditorMenu";
@@ -124,13 +126,13 @@ export function MapView({
   const { data: networkData, reload: reloadNetwork } = useNetworkData();
   const {
     contextMenu, setContextMenu, splitEdge, deleteNode, deleteNodes, saveNetwork, dirty, saving,
-    addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat,
+    addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat, getNodeDegree,
   } = useNetworkEditor(mapRef, networkData);
 
   useDrawEdges(
     mapRef,
     isDrawingEdges,
-    { addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat },
+    { addDrawnNode, addDrawnEdge, removeNodeIfOrphan, getNodeLngLat, getNodeDegree },
     onCancelDrawEdges,
     networkData,
     brushActive,
@@ -153,13 +155,64 @@ export function MapView({
     if (isDeletingNodes && !isMicro) onCancelDeleteNodes?.();
   }, [isDrawingEdges, isDeletingNodes, isMicro, onCancelDrawEdges, onCancelDeleteNodes]);
 
+  const { canUndo, canRedo } = useHistorySnapshot();
+  const isMicroRef = useRef(isMicro);
+  isMicroRef.current = isMicro;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+
+  // closes any open context menu (its target may have been undone away) and
+  // pans to the reverted edit when it happened off-screen, so undo is never
+  // an invisible change
+  const applyHistory = (fn) => {
+    // checked here (not only in the keydown guard) so the arrow buttons are
+    // also blocked during a live gesture or an in-flight save
+    if (isGestureActiveRef.current || savingRef.current) return;
+    const entry = fn();
+    if (!entry) return;
+    setContextMenu(null);
+    const map = mapRef.current;
+    if (map && entry.at && !map.getBounds().contains(entry.at)) {
+      map.easeTo({ center: entry.at, duration: 400 });
+    }
+  };
+  const applyHistoryRef = useRef(applyHistory);
+  applyHistoryRef.current = applyHistory;
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!isMicroRef.current) return;
+      if (isGestureActiveRef.current) return;
+      if (savingRef.current) return;
+      const t = e.target;
+      if (t instanceof HTMLElement &&
+          (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (!e.ctrlKey && !e.metaKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        applyHistoryRef.current(undoHistory);
+      } else if (k === "y" || (k === "z" && e.shiftKey)) {
+        e.preventDefault();
+        applyHistoryRef.current(redoHistory);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   const { panel: svPanel, closePanel: closeSV, onPanoChange } =
     useStreetView(mapRef, mapZoom, brushActive);
 
   const handleSave = async () => {
     const ok = await saveNetwork();
     // reloading after a failed save would wipe the unsaved edits and clear dirty
-    if (ok) reloadNetwork();
+    if (ok) {
+      reloadNetwork().catch((err) => {
+        console.error("Reload after save failed:", err);
+        alert("Saved, but reloading the network failed — please refresh the page.");
+      });
+    }
   };
 
   return (
@@ -254,6 +307,36 @@ export function MapView({
               <path d="M3.5 4.5l.7 8.6a1 1 0 0 0 1 .9h5.6a1 1 0 0 0 1-.9l.7-8.6" />
               <path d="M6.3 7.5v3.5" />
               <path d="M9.7 7.5v3.5" />
+            </svg>
+          </button>
+        )}
+
+        {isMicro && (
+          <button
+            className="historyBtn undoBtn"
+            onClick={() => applyHistory(undoHistory)}
+            disabled={!canUndo || saving}
+            title="Undo (Ctrl+Z)"
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
+              <path d="M6.5 3.5 3 7l3.5 3.5" />
+              <path d="M3 7h6a4 4 0 0 1 4 4v1.5" />
+            </svg>
+          </button>
+        )}
+
+        {isMicro && (
+          <button
+            className="historyBtn redoBtn"
+            onClick={() => applyHistory(redoHistory)}
+            disabled={!canRedo || saving}
+            title="Redo (Ctrl+Y)"
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
+              <path d="M9.5 3.5 13 7l-3.5 3.5" />
+              <path d="M13 7H7a4 4 0 0 0-4 4v1.5" />
             </svg>
           </button>
         )}

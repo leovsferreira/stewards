@@ -871,3 +871,39 @@ html, body, #root {
 .deleteNodesBtn.active:hover {
   background: #fee2e2;
 }
+
+.historyBtn {
+  position: absolute;
+  right: 10px;
+  z-index: 10;
+
+  width: 29px;
+  height: 29px;
+  padding: 0;
+
+  background: #fff;
+  border: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  color: #333;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+  user-select: none;
+}
+
+.undoBtn { top: 218px; }
+.redoBtn { top: 255px; }
+
+.historyBtn:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.historyBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
