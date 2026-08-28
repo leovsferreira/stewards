@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { tileToLngLatBounds } from "../utils/tileUtils";
+import { STUDY_TILES } from "../utils/studyTiles";
 
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 
@@ -28,6 +29,21 @@ const CITY_CENTERS = {
   recife: [-34.8745, -8.0535],
 };
 
+// ?tile=1A (study code) or ?tile=105645_136968 (raw z18 tile id) -> start the
+// map fitted to that tile, which puts it straight into the micro view
+function initialBoundsFromUrl() {
+  const code = new URLSearchParams(window.location.search).get("tile");
+  if (!code) return null;
+  const id = STUDY_TILES[code.toUpperCase()] ?? (/^\d+_\d+$/.test(code) ? code : null);
+  if (!id) {
+    console.warn(`Unknown tile code in URL: ${code}`);
+    return null;
+  }
+  const [x, y] = id.split("_").map(Number);
+  const [w, s, e, n] = tileToLngLatBounds(x, y, 18);
+  return [[w, s], [e, n]];
+}
+
 export function useMap() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -38,12 +54,17 @@ export function useMap() {
   useEffect(() => {
     if (mapRef.current) return;
 
+    const startBounds = initialBoundsFromUrl();
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: MAP_STYLE,
-      // center: [-71.06, 42.3], // Dorchester / Boston area
-      center: CITY_CENTERS[import.meta.env.VITE_CITY] ?? CITY_CENTERS.boston,
-      zoom: 13,
+      ...(startBounds
+        ? { bounds: startBounds, fitBoundsOptions: { padding: 10 } }
+        : {
+            // center: [-71.06, 42.3], // Dorchester / Boston area
+            center: CITY_CENTERS[import.meta.env.VITE_CITY] ?? CITY_CENTERS.boston,
+            zoom: 13,
+          }),
     });
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
