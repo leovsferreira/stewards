@@ -19,6 +19,8 @@ import { tileToLngLatBounds } from "./utils/tileUtils";
 
 import "./App.css";
 
+import { USER_STUDY } from "./utils/viewConfig";
+
 const VIEW_LABELS    = { macro: "8 × 8 Tiles",  meso: "2 × 2 Tiles", micro: "2 × 2 Tiles" };
 const LOADING_LABELS = { macro: "Loading 8 × 8 metadata...", meso: "Loading 2 × 2 metadata...", micro: "Loading 2 × 2 metadata..." };
 const LEVEL_BADGES   = { macro: "MACRO", meso: "MESO", micro: "MICRO" };
@@ -328,7 +330,8 @@ export default function App() {
             ? (suggestions?.get(focusTile.id) ?? null)
             : null;
 
-          useSuggestionLayer(mapRef, focusTileSuggestions?.get(0) ?? null, viewLevel);
+          // study mode hides the blue model-suggestion polygons in micro view
+          useSuggestionLayer(mapRef, USER_STUDY ? null : (focusTileSuggestions?.get(0) ?? null), viewLevel);
           useSelectedSuggestionsLayer(mapRef, selectedFeatures, viewLevel);
 
           const handleEditCommit = useCallback((key, updatedFeature) => {
@@ -471,6 +474,7 @@ export default function App() {
                 </div>
               )}
 
+              {(!USER_STUDY || viewLevel === "macro") && (
               <div className={`rightPane ${viewLevel}`}>
                 <div className="header">
                   <div>
@@ -586,6 +590,7 @@ export default function App() {
                   </div>
                 )}
               </div>
+              )}
             </>
           );
         }}

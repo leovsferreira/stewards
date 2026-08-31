@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { isDrawingEdgesRef, isDeletingNodesRef, isGestureActiveRef } from "./drawingState";
 import { pushHistory, clearNetworkHistory, hasNetworkEdits } from "./history";
+import { MICRO_ZOOM } from "../utils/viewConfig";
 
 const EDGE_SOURCE = "editor-edges-source";
 const EDGE_LAYER  = "editor-edges-layer";
@@ -8,7 +9,6 @@ const EDGE_HIT    = "editor-edges-hit";
 const NODE_SOURCE = "editor-nodes-source";
 export const NODE_LAYER = "editor-nodes-layer";
 const MESO_ZOOM   = 16;
-const MICRO_ZOOM = 18.5;
 
 function parseNetwork(geojson) {
   const byKey = new Map();

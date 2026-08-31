@@ -12,7 +12,7 @@ import { NetworkEditorMenu } from "./NetworkEditorMenu";
 import { StreetViewPanel } from "./StreetViewPanel";
 import { tileToLngLatBounds } from "../utils/tileUtils";
 
-const MICRO_ZOOM = 18.5;
+import { MICRO_ZOOM } from "../utils/viewConfig";
 
 function formatValue(v) {
   if (v === undefined || v === null) return "—";

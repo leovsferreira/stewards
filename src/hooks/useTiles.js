@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { tilesForBounds } from "../utils/tileUtils";
 
 const MESO_ZOOM  = 16;
-const MICRO_ZOOM = 18.5;
+import { MICRO_ZOOM } from "../utils/viewConfig";
 
 function getViewLevel(zoom) {
   if (zoom >= MICRO_ZOOM) return "micro";

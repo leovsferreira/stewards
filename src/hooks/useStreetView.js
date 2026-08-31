@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import maplibregl from "maplibre-gl";
 import { isDrawingRef, isDrawingEdgesRef, isDeletingNodesRef } from "./drawingState";
 
+import { MICRO_ZOOM } from "../utils/viewConfig";
+
 const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
-const MICRO_ZOOM = 18.5;
 
 const RED      = "#ef4444";
 const RED_DARK = "#dc2626";

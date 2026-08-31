@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { tileToLngLatBounds } from "../utils/tileUtils";
 import { STUDY_TILES } from "../utils/studyTiles";
+import { MICRO_ZOOM } from "../utils/viewConfig";
 
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 
@@ -66,6 +67,12 @@ export function useMap() {
             zoom: 13,
           }),
     });
+
+    // a ?tile= link must always land inside the micro view, whatever the
+    // threshold and viewport size
+    if (startBounds && map.getZoom() < MICRO_ZOOM) {
+      map.jumpTo({ zoom: MICRO_ZOOM + 0.1 });
+    }
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
