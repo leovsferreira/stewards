@@ -29,9 +29,24 @@ export function StreetViewPanel({ panel, onClose, onPanoChange }) {
     loadGoogleMaps().then(() => {
       if (cancelled || !containerRef.current) return;
 
+      // Reuse the existing panorama. Creating a new one on every update leaks
+      // WebGL contexts (browsers cap them per page; past the cap the oldest
+      // context is lost and the canvas goes black — can even kill the main map).
       if (panoRef.current) {
-        window.google.maps.event.clearInstanceListeners(panoRef.current);
-        panoRef.current = null;
+        const pano = panoRef.current;
+        const pos = pano.getPosition();
+        if (!pos ||
+            Math.abs(pos.lat() - panel.location.lat) > 1e-9 ||
+            Math.abs(pos.lng() - panel.location.lng) > 1e-9) {
+          pano.setPosition({ lat: panel.location.lat, lng: panel.location.lng });
+        }
+        // small epsilon: pov_changed -> onPanoChange -> re-render feeds heading
+        // straight back here; without it, setPov would loop forever
+        if (Math.abs(pano.getPov().heading - panel.heading) > 0.5) {
+          pano.setPov({ heading: panel.heading, pitch: pano.getPov().pitch ?? 0 });
+        }
+        pano.setVisible(true);
+        return;
       }
 
       const pano = new window.google.maps.StreetViewPanorama(containerRef.current, {
@@ -67,13 +82,18 @@ export function StreetViewPanel({ panel, onClose, onPanoChange }) {
     });
 
     return () => {
-      cancelled = true;
-      if (panoRef.current) {
-        window.google.maps.event.clearInstanceListeners(panoRef.current);
-        panoRef.current = null;
-      }
+      cancelled = true;   // keep the panorama alive across effect re-runs — reused above
     };
   }, [panel.location, panel.heading, panel.open]);
+
+  // dispose only when the panel actually unmounts (closed)
+  useEffect(() => () => {
+    if (panoRef.current) {
+      window.google.maps.event.clearInstanceListeners(panoRef.current);
+      panoRef.current.setVisible(false);
+      panoRef.current = null;
+    }
+  }, []);
 
   if (!panel.open) return null;
 
